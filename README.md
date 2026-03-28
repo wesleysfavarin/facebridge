@@ -1,183 +1,204 @@
 # FaceBridge
 
-**Privacy-first biometric authorization bridge between iPhone and macOS.**
+**Privacy-First Biometric Authorization Bridge for iPhone and macOS**
 
-> **Status: Public Alpha** — Security-hardened, tested, not yet production-ready. See [RELEASE_READINESS.md](RELEASE_READINESS.md).
+FaceBridge enables secure biometric authorization requests between a paired Mac and iPhone using Secure Enclave keys, signed requests, replay protection, and authenticated transports.
 
-FaceBridge allows users to securely approve actions on macOS using Face ID or Touch ID from their iPhone, leveraging the Secure Enclave for cryptographic key management and challenge-response authorization.
+---
 
-## What FaceBridge Is
+> **Alpha Software**
+>
+> FaceBridge is currently in **security-hardened alpha** (v0.1.0-alpha).
+> It is intended for research, experimentation, and community review.
+> It is **NOT** a replacement for macOS login, Touch ID, FileVault, or Apple Pay.
+> See [LIMITATIONS.md](LIMITATIONS.md) for a complete list of known constraints.
 
-FaceBridge is a **secure authorization bridge** — not an authentication replacement. It provides a mechanism for applications and companion agents running on macOS to request biometric authorization from a trusted iPhone nearby.
+---
 
-Every authorization is backed by:
+## Features Implemented
 
-- Cryptographically signed challenge-response protocol (ECDSA P-256)
-- Secure Enclave key generation with biometric binding
-- Nonce-based replay protection with expiration and future-date rejection
-- Explicit device pairing with Keychain-stored trust
-- Mac-side request signing for origin authenticity
-- HMAC-SHA256 message envelope authentication
-- Validated Codable deserialization for all security-critical types
+### Cryptographic Foundation
+- Secure Enclave-backed P-256 ECDSA signing (iOS, with `biometryCurrentSet` binding)
+- Software key fallback for simulator and testing environments
+- Cryptographically random nonce generation with validation (minimum 16 bytes, non-zero)
+- Cryptographically random session tokens (32 bytes via `SecRandomCopyBytes`)
+- HKDF-SHA256 session key derivation primitives
+- Key rotation primitives
+- Short Authentication String (SAS) verification primitives
 
-## What FaceBridge Is NOT
-
-FaceBridge does **not** replace:
-
-- macOS login authentication
-- FileVault unlock
-- Apple Pay authorization
-- Secure Enclave system identity
-- Native Touch ID / Optic ID behavior
-
-FaceBridge only provides authorization workflows inside supported applications using **public Apple APIs**.
-
-## How It Works
-
-### Pairing
-
-1. Mac generates a signed pairing invitation (code + signature)
-2. iPhone scans or enters the pairing code
-3. Public keys are exchanged (P-256, Secure Enclave on device / Software keys in simulator)
-4. SAS (Short Authentication String) verification confirms key material matches
-5. Both devices confirm trust explicitly with signed confirmation
-6. Trust relationship stored in Keychain
-
-### Authorization
-
-1. Mac generates a cryptographic nonce
-2. Mac creates and **signs** an authorization request (proving Mac identity)
-3. Request sent to iPhone via BLE (encrypted characteristics) or local network (TLS default)
-4. iPhone **verifies sender signature** against stored public key
-5. iPhone prompts Face ID / Touch ID
-6. iPhone signs the canonical challenge payload using Secure Enclave key
-7. Mac verifies the response signature, request binding, and payload integrity
-8. Mac executes the approved action
-9. Event logged to audit trail
+### Authorization Protocol
+- Signed authorization requests (Mac signs with device key, proving origin)
+- Signed authorization responses (iPhone signs all decisions: approved, denied, expired)
+- Canonical length-prefixed binary payload for deterministic signing
+- Replay protection with bounded memory, TTL eviction, and future-date rejection
+- Session lifecycle enforcement with strict state machine transitions
+- Atomic session consumption (prevents double-use)
+- Codable deserialization validation on all security-critical types
 
 ### Transport Security
+- TLS-enabled local network transport (TLS is the default; plaintext requires explicit `allowInsecure: true`)
+- BLE transport with encryption-required characteristic permissions
+- BLE fragmentation and reassembly layer for large payloads
+- Message envelope with HMAC-SHA256 authentication and sequence numbers
+- Per-device connection state tracking
+- Connection limits, idle timeouts, and message size caps
 
-| Transport | Default Mode | Encryption |
-|-----------|-------------|------------|
-| BLE | Encrypted characteristics | Link-layer encryption required |
-| Local Network | TLS (default) | Plaintext only with explicit `allowInsecure: true` flag |
+### Trust and Policy
+- Explicit device pairing with signed invitation, acceptance, and confirmation messages
+- Device identity validation (P-256 X9.63 uncompressed key format, 65 bytes)
+- Trust relationship persistence in Keychain
+- Policy engine with biometric enforcement, session TTL, and proximity checks
+- Display sanitization (bidi override, control character stripping, length capping)
+- Rate limiting and queue overflow protection
 
-BLE messages are fragmented/reassembled transparently via `BLEFragmentationManager` for payloads exceeding MTU.
+### Operations
+- Structured audit logging pipeline (actor-isolated)
+- macOS background agent with graceful shutdown and stuck-state recovery
+- Signal handling (SIGTERM, SIGINT)
 
-All messages use `MessageEnvelope` with optional HMAC-SHA256 authentication and sequence numbers for anti-reordering.
+## Architecture
 
-## Privacy Guarantees
+FaceBridge uses a modular Swift Package Manager architecture with clear dependency boundaries:
 
-- **No biometric data is ever stored or transmitted.** Biometric authentication only unlocks Secure Enclave key usage via LocalAuthentication.
-- **All keys are device-bound.** Private keys never leave the Secure Enclave.
-- **All communication is local.** No cloud servers, no internet required.
-- **Explicit pairing required.** No silent trust establishment.
-- **Full audit trail.** Every authorization event is logged locally.
+```
+FaceBridgeCore          Domain models, nonce, session, policy, audit
+FaceBridgeCrypto        Secure Enclave, software keys, signing, SAS, HKDF
+FaceBridgeProtocol      Authorization/pairing message schemas, envelope
+FaceBridgeTransport     BLE + local network transport, fragmentation
+FaceBridgeSharedUI      Shared SwiftUI components, display sanitizer
+FaceBridgeiOSApp        iOS authenticator application
+FaceBridgeMacApp        macOS companion application
+FaceBridgeMacAgent      macOS background authorization agent
+```
 
-## Security Architecture
+Dependencies flow downward: Apps -> UI/Transport -> Protocol -> Crypto -> Core.
 
-| Layer | Technology |
-|-------|-----------|
-| Key generation | Secure Enclave (P-256 ECDSA, biometryCurrentSet) |
-| Signing | ECDSA with SHA-256 |
-| Key storage | Keychain Services (device-only) |
-| Biometric gate | LocalAuthentication framework |
-| Replay protection | Nonce + expiration + future-date rejection |
-| Message integrity | HMAC-SHA256 with sequence numbers |
-| Transport (BLE) | Encryption-required characteristics + fragmentation |
-| Transport (LAN) | TLS by default |
-| Request authenticity | Mac signs requests, iPhone verifies |
-| Trust model | Explicit pairing with revocation support |
-| Input validation | Codable deserialization validates all security fields |
-| UI safety | DisplaySanitizer strips bidi/control characters |
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed module breakdown.
 
-## Canonical Code Paths
+## Security Model
 
-Each security responsibility has exactly one canonical implementation:
+| Protection | Implementation |
+|-----------|---------------|
+| Request authenticity | Mac signs `AuthorizationRequest` with device key (`senderSignature`) |
+| Response authenticity | iPhone signs all responses with Secure Enclave key (min 64-byte signature enforced) |
+| Replay protection | Nonce validation + bounded replay window + future-date rejection |
+| Trust verification | Device identity validated (key format, Keychain persistence) |
+| Session tokens | 32 bytes `SecRandomCopyBytes`, not UUID |
+| Transport integrity | HMAC-SHA256 message envelope with sequence numbers |
+| LAN transport | TLS by default (system defaults; no certificate pinning yet) |
+| BLE transport | Encryption-required characteristic permissions |
+| Input validation | All security types validate on Codable deserialization |
 
-| Responsibility | Canonical File |
-|---------------|---------------|
-| Nonce generation | `FaceBridgeCore/Nonce.swift` (NonceGenerator) |
-| Session tokens | `FaceBridgeProtocol/SessionToken.swift` |
-| Request signing | `FaceBridgeProtocol/AuthorizationRequest.swift` (length-prefixed signable) |
-| Response signing | `FaceBridgeProtocol/AuthorizationResponse.swift` (mandatory signatures) |
-| Session handling | `FaceBridgeMacAgent/SecureSessionHandler.swift` |
-| Policy enforcement | `FaceBridgeCore/PolicyEngine.swift` + `FaceBridgeMacAgent/PolicyEnforcer.swift` |
-| Signature verification | `FaceBridgeCrypto/SignatureService.swift` (SignatureVerifier) |
-| Key management | `FaceBridgeCrypto/SecureEnclaveKeyManager.swift` (production) / `SoftwareKeyManager.swift` (test/simulator) |
-| BLE transport | `FaceBridgeTransport/BLETransport.swift` + `BLEFragmentationManager.swift` |
-| LAN transport | `FaceBridgeTransport/LocalNetworkTransport.swift` (TLS default) |
-| Audit logging | `FaceBridgeCore/AuditLog.swift` (AuditLogger actor) |
-| Pairing flow | `FaceBridgeCore/PairingFlowController.swift` |
+See [SECURITY.md](SECURITY.md) for the full threat model and [TRUST_MODEL.md](TRUST_MODEL.md) for trust chain details.
 
 ## Known Limitations
 
-- **Software keys in simulator/tests**: `SoftwareKeyManager` is used when Secure Enclave is unavailable. Private keys are stored in Keychain, not hardware-protected.
-- **No full E2E encryption yet**: Message confidentiality relies on transport-level protection (BLE link encryption, TLS). Session key derivation abstraction exists (`SessionKeyDerivation.swift`) for future E2E.
-- **SwiftUI views are scaffolds**: UI views load empty state; real data loading depends on full app integration.
-- **No certificate pinning**: TLS uses system defaults. Future work: pin to pairing-derived key material.
-- **Forward secrecy not implemented**: HKDF abstraction exists but ephemeral DH key exchange is not yet wired.
+- No forward secrecy (HKDF abstraction exists; ephemeral ECDH not wired)
+- No full end-to-end encryption layer (relies on transport-level protection)
+- No TLS certificate pinning (uses system defaults)
+- SAS verification logic exists and is tested but not fully wired into pairing UI flow
+- Trust revocation is manual removal only; no propagation mechanism
+- macOS Secure Enclave parity differs from iOS (Touch ID binding vs Face ID)
+- Software key fallback used in simulator/testing (not hardware-protected)
+- SwiftUI views are scaffolds (no live data loading)
+- `AuthorizationResponder` does not reject requests missing `senderSignature` if sender is in trust store
 
-## Project Structure
+See [LIMITATIONS.md](LIMITATIONS.md) for the complete list.
 
-```
-FaceBridge/
-├── Sources/
-│   ├── FaceBridgeCore/          # Domain models, nonce, audit, policy, session
-│   ├── FaceBridgeCrypto/        # Secure Enclave, signing, Keychain, SAS, HKDF
-│   ├── FaceBridgeProtocol/      # Authorization & pairing schemas, envelope
-│   ├── FaceBridgeTransport/     # BLE + network transport, fragmentation
-│   ├── FaceBridgeSharedUI/      # Shared SwiftUI components, sanitizer
-│   ├── FaceBridgeiOSApp/        # iOS authenticator app
-│   ├── FaceBridgeMacApp/        # macOS companion app
-│   └── FaceBridgeMacAgent/      # macOS background agent
-├── Tests/
-│   ├── FaceBridgeCoreTests/
-│   ├── FaceBridgeCryptoTests/
-│   ├── FaceBridgeProtocolTests/
-│   ├── FaceBridgeTransportTests/
-│   └── FaceBridgeMacAgentTests/
-├── Package.swift
-├── README.md
-├── SECURITY.md
-├── CONTRIBUTING.md
-├── ROADMAP.md
-├── RELEASE_READINESS.md
-└── LICENSE
-```
+## Supported Platforms
 
-## Requirements
-
-- iOS 17+ / macOS 14+
-- Xcode 15+
-- Swift 5.9+
+| Platform | Minimum Version |
+|----------|----------------|
+| iOS | 17.0+ |
+| macOS | 14.0+ |
+| Swift | 5.9+ |
+| Xcode | 15.0+ |
 
 ## Building
 
+### Swift Package Manager
+
 ```bash
+git clone https://github.com/wesleysfavarin/facebridge.git
+cd facebridge
 swift build
 ```
+
+### Xcode
+
+1. Open `Package.swift` in Xcode 15+
+2. Select the desired scheme (`FaceBridgeMacApp`, `FaceBridgeiOSApp`, or `FaceBridgeMacAgent`)
+3. Build with Cmd+B
+
+### Running the macOS Agent
+
+```bash
+swift build --product FaceBridgeMacAgent
+.build/debug/FaceBridgeMacAgent
+```
+
+The agent listens for authorization requests, handles signal-based shutdown, and runs a periodic health check loop.
+
+### Running the iOS App
+
+Open the project in Xcode, select the `FaceBridgeiOSApp` scheme, and run on a device with Face ID or Touch ID (Secure Enclave requires physical hardware).
+
+### Pairing
+
+1. Launch the Mac app and generate a pairing invitation
+2. On the iPhone app, enter or scan the pairing code
+3. Both devices exchange P-256 public keys
+4. (Future) Confirm SAS match on both screens
+5. Trust relationship is persisted in Keychain on both devices
 
 ## Testing
 
 ```bash
 swift test
-# 145 tests across 32 suites
 ```
 
-## Why FaceBridge Exists
+**Current status:** 145 tests across 32 suites, all passing.
 
-Modern Macs lack external biometric authorization options outside Apple's Magic Keyboard with Touch ID. Many users already carry an iPhone with Face ID — a device with a Secure Enclave capable of strong biometric-gated cryptographic operations.
+Tests cover:
+- Nonce generation, validation, and Codable bypass prevention
+- Replay protection including future-dated nonce rejection
+- Session state machine transitions (valid and invalid)
+- Policy engine with biometric, TTL, and proximity enforcement
+- Authorization request/response signing and verification roundtrips
+- Mac request signing and forged request rejection
+- Codable deserialization validation for all security types
+- BLE fragmentation and reassembly
+- Transport configuration (TLS default, connection limits)
+- Display sanitization
+- Key format consistency across components
+- Background listener queue protection and stuck recovery
 
-FaceBridge explores a **privacy-respecting, open-source alternative** authorization bridge using the iPhone Secure Enclave. It is built entirely on public Apple APIs and designed for transparency, auditability, and developer extensibility.
+## Roadmap
+
+| Version | Focus |
+|---------|-------|
+| **v0.1.0-alpha** (current) | Security-hardened foundation, 145 tests |
+| v0.2.0 | ECDH ephemeral session keys, certificate pinning |
+| v0.3.0 | Forward secrecy, trust revocation propagation |
+| v0.4.0 | Pairing SAS UI integration, SwiftUI data wiring |
+| v0.5.0 | Notarization-ready macOS agent |
+| v1.0.0 | Production security target, third-party audit |
+
+See [ROADMAP.md](ROADMAP.md) for details.
+
+## Contributing
+
+Contributions are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
+
+Security vulnerabilities should be reported privately — see [SECURITY.md](SECURITY.md#reporting-security-issues).
 
 ## Author
 
-**Wesley Favarin**
+Created and maintained by **Wesley Favarin**.
 
 - GitHub: [github.com/wesleysfavarin](https://github.com/wesleysfavarin)
-- Medium: [medium.com/@wesleysfavarin](https://medium.com/@wesleysfavarin)
 - LinkedIn: [linkedin.com/in/wesley-s-favarin-61249755](https://www.linkedin.com/in/wesley-s-favarin-61249755)
+- Medium: [medium.com/@wesleysfavarin](https://medium.com/@wesleysfavarin)
 
 ## License
 

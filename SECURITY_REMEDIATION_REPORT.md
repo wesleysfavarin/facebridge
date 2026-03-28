@@ -1,5 +1,28 @@
 # Security Remediation Report
 
+## Executive Summary
+
+Two comprehensive security audits were performed on FaceBridge, identifying 35 findings across critical, high, and medium severity levels. **All confirmed findings have been resolved.** The project now has 145 tests across 32 suites validating every security-critical code path.
+
+**Key outcomes:**
+- 17 critical/high findings from Audit 1: all resolved
+- 18 findings from Audit 2: all confirmed findings resolved, 4 documented as known limitations
+- Codable deserialization validation added to all security types (prevents JSON-based bypass)
+- Mac request signing added (sender authenticity)
+- TLS is now the default transport mode
+- BLE fragmentation wired into runtime
+- Dead code removed (.claude/worktrees)
+
+**Remaining residual risks** (documented in [LIMITATIONS.md](LIMITATIONS.md)):
+- No forward secrecy (HKDF ready, ECDH not wired)
+- No E2E encryption (transport-layer only)
+- No certificate pinning
+- SAS not wired into pairing UI
+- `senderSignature` optional on requests
+- Trust revocation is local only
+
+**Status:** Ready for public alpha publication. Not production-ready. No third-party audit performed.
+
 ## Overview
 
 Two comprehensive security audits were performed on FaceBridge. This report documents every finding, its status, and the remediation applied across both passes.
@@ -121,3 +144,53 @@ FaceBridge implements a defense-in-depth security model:
 6. **Policy enforcement**: Biometric proof propagated end-to-end, session TTL, proximity checks
 7. **UI safety**: Display sanitization, trust indicators
 8. **Operational**: Audit logging, stuck-state recovery, graceful shutdown
+
+## Subsystem Status Summary
+
+### Transport Security
+
+| Component | Status | Gap |
+|-----------|--------|-----|
+| LAN TLS default | Implemented | No certificate pinning |
+| BLE encryption-required characteristics | Implemented | Link-layer only, no app-layer E2E |
+| BLE fragmentation/reassembly | Implemented and wired | CRC integrity, no retransmission |
+| Message envelope HMAC | Implemented | Optional; not enforced at transport level |
+| Message size limits | Implemented | 1MB LAN, 64KB BLE |
+| Connection limits | Implemented | 10 max LAN, idle timeout 120s |
+| Connection error cleanup | Implemented | Connections removed on error |
+
+### Pairing Security
+
+| Component | Status | Gap |
+|-----------|--------|-----|
+| Signed pairing invitation | Implemented | — |
+| Signed pairing acceptance | Implemented | — |
+| Signed pairing confirmation | Implemented | — |
+| SAS computation | Implemented and tested | Not wired into UI |
+| Pairing code rate limiting | Implemented | — |
+| Pairing code lockout | Implemented | — |
+| Key format validation | Implemented (init + Codable) | — |
+
+### Session Protection
+
+| Component | Status | Gap |
+|-----------|--------|-----|
+| Cryptographic session tokens | Implemented (32-byte CSPRNG) | — |
+| Session state machine | Implemented (strict transitions) | — |
+| Atomic session consumption | Implemented | — |
+| Session TTL enforcement | Implemented | — |
+| Biometric proof propagation | Implemented (end-to-end) | — |
+| Expired session rejection | Implemented | — |
+| Double-consume prevention | Implemented | — |
+
+### Request/Response Integrity
+
+| Component | Status | Gap |
+|-----------|--------|-----|
+| Canonical signing payload | Implemented (length-prefixed) | — |
+| Mac request signing | Implemented (`senderSignature`) | Optional field; not enforced |
+| Sender signature verification | Implemented | Only when both sig and key present |
+| Response signature mandatory | Implemented (min 64 bytes) | — |
+| Request ID binding verification | Implemented | — |
+| Signed payload integrity check | Implemented | — |
+| Codable validation (all types) | Implemented | — |

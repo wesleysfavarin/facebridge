@@ -148,6 +148,41 @@ Dependencies flow downward: Apps → UI/Transport → Protocol → Crypto → Co
 
 Cross-cutting concerns (like `AuditLogger`) are injected, not imported directly.
 
+See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed module breakdown with flow diagrams.
+
+## Security-Sensitive Contributions
+
+If your change touches any of the following, extra review rigor applies:
+
+- Cryptographic operations (key generation, signing, verification, hashing)
+- Nonce generation or validation
+- Session lifecycle or state machine
+- Trust verification or revocation
+- Transport security (TLS configuration, BLE permissions)
+- Codable `init(from:)` on security types
+- Policy evaluation logic
+
+For security-sensitive changes:
+- Include negative-path tests (invalid input, tampered data, replay attempts)
+- Verify Codable deserialization cannot bypass validation
+- Document any new attack surface in the PR description
+- Consider impact on [TRUST_MODEL.md](TRUST_MODEL.md) and [SECURITY.md](SECURITY.md)
+
+## Documentation
+
+FaceBridge maintains several documentation files that should be kept in sync with code changes:
+
+| File | Purpose |
+|------|---------|
+| [README.md](README.md) | Project overview and quick start |
+| [SECURITY.md](SECURITY.md) | Threat model and security policy |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Module responsibilities and flow diagrams |
+| [TRUST_MODEL.md](TRUST_MODEL.md) | Trust establishment and verification |
+| [LIMITATIONS.md](LIMITATIONS.md) | Known constraints and gaps |
+| [ROADMAP.md](ROADMAP.md) | Release milestones |
+
+If your change affects the security model, trust chain, or known limitations, update the relevant documentation.
+
 ## License
 
 By contributing, you agree that your contributions will be licensed under the MIT License.
