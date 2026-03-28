@@ -40,9 +40,18 @@ public struct PolicyEngine: Sendable {
         self.policy = policy
     }
 
-    public func evaluate(session: Session, rssi: Int? = nil) -> PolicyDecision {
+    public func evaluate(session: Session, biometricVerified: Bool = false, rssi: Int? = nil) -> PolicyDecision {
         if session.isExpired {
             return .denied(reason: .sessionExpired)
+        }
+
+        let sessionDuration = session.expiresAt.timeIntervalSince(session.createdAt)
+        if sessionDuration > policy.maxSessionTTL {
+            return .denied(reason: .sessionTTLExceeded)
+        }
+
+        if policy.requireBiometric && !biometricVerified {
+            return .denied(reason: .biometricRequired)
         }
 
         if policy.requireProximity {
@@ -65,6 +74,8 @@ public enum PolicyDecision: Sendable, Equatable {
 
 public enum PolicyDenialReason: String, Sendable, Equatable {
     case sessionExpired
+    case sessionTTLExceeded
+    case biometricRequired
     case proximityRequired
     case deviceTooFar
     case untrustedDevice

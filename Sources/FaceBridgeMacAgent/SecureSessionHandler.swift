@@ -11,8 +11,8 @@ public actor SecureSessionHandler {
         self.auditLogger = auditLogger
     }
 
-    public func createSession(trustRelationshipId: UUID, ttl: TimeInterval = 30) -> Session {
-        let nonce = NonceGenerator().generate()
+    public func createSession(trustRelationshipId: UUID, ttl: TimeInterval = 30) throws -> Session {
+        let nonce = try NonceGenerator().generate()
         let session = Session(trustRelationshipId: trustRelationshipId, nonce: nonce, ttl: ttl)
         activeSessions[session.id] = session
         return session
@@ -23,11 +23,9 @@ public actor SecureSessionHandler {
     }
 
     public func validateAndConsume(_ sessionId: UUID) async -> Session? {
-        guard var session = activeSessions[sessionId] else { return nil }
+        guard let session = activeSessions.removeValue(forKey: sessionId) else { return nil }
 
         guard !session.isExpired else {
-            session.expire()
-            activeSessions[sessionId] = session
             await auditLogger.log(.sessionExpired, sessionId: sessionId)
             return nil
         }
@@ -41,21 +39,33 @@ public actor SecureSessionHandler {
         return session
     }
 
-    public func approveSession(_ sessionId: UUID) {
-        activeSessions[sessionId]?.approve()
+    public func approveAndConsume(_ sessionId: UUID) throws -> Session? {
+        guard var session = activeSessions.removeValue(forKey: sessionId) else { return nil }
+        try session.approve()
+        return session
     }
 
-    public func denySession(_ sessionId: UUID) {
-        activeSessions[sessionId]?.deny()
+    public func denyAndConsume(_ sessionId: UUID) throws -> Session? {
+        guard var session = activeSessions.removeValue(forKey: sessionId) else { return nil }
+        try session.deny()
+        return session
     }
 
     public func removeSession(_ sessionId: UUID) {
         activeSessions.removeValue(forKey: sessionId)
     }
 
+    public func activeSessionCount() -> Int {
+        activeSessions.count
+    }
+
     public func pruneExpired() async {
+        var expired: [UUID] = []
         for (id, session) in activeSessions where session.isExpired {
-            activeSessions[id]?.expire()
+            expired.append(id)
+        }
+        for id in expired {
+            activeSessions.removeValue(forKey: id)
             await auditLogger.log(.sessionExpired, sessionId: id)
         }
     }

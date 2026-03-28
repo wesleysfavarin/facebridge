@@ -28,14 +28,18 @@ public struct AuditEntry: Codable, Sendable, Identifiable {
 public enum AuditEvent: String, Codable, Sendable {
     case pairingInitiated
     case pairingCompleted
+    case pairingFailed
     case pairingRejected
     case deviceRevoked
+    case keyRotated
     case authorizationRequested
     case authorizationApproved
     case authorizationDenied
     case signatureVerificationFailed
     case sessionExpired
     case replayDetected
+    case agentStarted
+    case agentStopped
 }
 
 public actor AuditLogger {

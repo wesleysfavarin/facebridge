@@ -14,6 +14,9 @@ let package = Package(
         .library(name: "FaceBridgeProtocol", targets: ["FaceBridgeProtocol"]),
         .library(name: "FaceBridgeTransport", targets: ["FaceBridgeTransport"]),
         .library(name: "FaceBridgeSharedUI", targets: ["FaceBridgeSharedUI"]),
+        .executable(name: "FaceBridgeiOSApp", targets: ["FaceBridgeiOSApp"]),
+        .executable(name: "FaceBridgeMacApp", targets: ["FaceBridgeMacApp"]),
+        .executable(name: "FaceBridgeMacAgent", targets: ["FaceBridgeMacAgent"]),
     ],
     targets: [
         // MARK: - Core
@@ -53,7 +56,7 @@ let package = Package(
 
         // MARK: - iOS App
 
-        .target(
+        .executableTarget(
             name: "FaceBridgeiOSApp",
             dependencies: [
                 "FaceBridgeCore",
@@ -66,7 +69,7 @@ let package = Package(
 
         // MARK: - macOS App
 
-        .target(
+        .executableTarget(
             name: "FaceBridgeMacApp",
             dependencies: [
                 "FaceBridgeCore",
@@ -79,7 +82,7 @@ let package = Package(
 
         // MARK: - macOS Agent
 
-        .target(
+        .executableTarget(
             name: "FaceBridgeMacAgent",
             dependencies: [
                 "FaceBridgeCore",
@@ -101,11 +104,21 @@ let package = Package(
         ),
         .testTarget(
             name: "FaceBridgeProtocolTests",
-            dependencies: ["FaceBridgeProtocol", "FaceBridgeCore"]
+            dependencies: ["FaceBridgeProtocol", "FaceBridgeCrypto", "FaceBridgeCore"]
         ),
         .testTarget(
             name: "FaceBridgeTransportTests",
-            dependencies: ["FaceBridgeTransport", "FaceBridgeCore", "FaceBridgeProtocol"]
+            dependencies: ["FaceBridgeTransport", "FaceBridgeCore", "FaceBridgeProtocol", "FaceBridgeSharedUI"]
+        ),
+        .testTarget(
+            name: "FaceBridgeMacAgentTests",
+            dependencies: [
+                "FaceBridgeMacAgent",
+                "FaceBridgeCore",
+                "FaceBridgeCrypto",
+                "FaceBridgeProtocol",
+                "FaceBridgeTransport",
+            ]
         ),
     ]
 )

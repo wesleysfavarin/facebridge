@@ -25,16 +25,28 @@ public struct Session: Codable, Hashable, Sendable {
         self.state = .pending
     }
 
-    public mutating func approve() {
-        guard !isExpired else { return }
+    public mutating func approve() throws {
+        guard state == .pending else {
+            throw FaceBridgeError.invalidStateTransition(from: state.rawValue, to: SessionState.approved.rawValue)
+        }
+        guard !isExpired else {
+            state = .expired
+            throw FaceBridgeError.sessionExpired
+        }
         state = .approved
     }
 
-    public mutating func deny() {
+    public mutating func deny() throws {
+        guard state == .pending else {
+            throw FaceBridgeError.invalidStateTransition(from: state.rawValue, to: SessionState.denied.rawValue)
+        }
         state = .denied
     }
 
-    public mutating func expire() {
+    public mutating func expire() throws {
+        guard state == .pending else {
+            throw FaceBridgeError.invalidStateTransition(from: state.rawValue, to: SessionState.expired.rawValue)
+        }
         state = .expired
     }
 }

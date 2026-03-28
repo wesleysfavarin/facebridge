@@ -1,68 +1,104 @@
 import Foundation
 import CoreBluetooth
+import os
 import FaceBridgeCore
 import FaceBridgeProtocol
 
 public final class BLETransport: NSObject, Transport, @unchecked Sendable {
     public static let serviceUUID = CBUUID(string: "FB10FACE-B1D6-4A3E-9F00-000000000001")
     public static let characteristicUUID = CBUUID(string: "FB10FACE-B1D6-4A3E-9F00-000000000002")
+    public static let maxReceiveSize = 65_536
 
     public let transportType: TransportType = .ble
-    public private(set) var connectionState: ConnectionState = .disconnected
+
+    private struct MutableState {
+        var connectionStates: [UUID: ConnectionState] = [:]
+        var discoveredPeripherals: [UUID: CBPeripheral] = [:]
+        var connectedPeripherals: [UUID: CBPeripheral] = [:]
+        var centralManager: CBCentralManager?
+        var peripheralManager: CBPeripheralManager?
+        var authorizedPeers: Set<UUID> = []
+    }
+
+    private let state = OSAllocatedUnfairLock(initialState: MutableState())
+    private let encoder = MessageEncoder()
+    private let fragmentationManager = BLEFragmentationManager()
+    private let queue = DispatchQueue(label: "com.facebridge.ble", qos: .userInitiated)
+
     public weak var delegate: TransportDelegate?
 
-    private var centralManager: CBCentralManager?
-    private var peripheralManager: CBPeripheralManager?
-    private var discoveredPeripherals: [UUID: CBPeripheral] = [:]
-    private var connectedPeripherals: [UUID: CBPeripheral] = [:]
-    private let encoder = MessageEncoder()
+    public var connectionState: ConnectionState {
+        state.withLock { s in
+            if s.connectedPeripherals.isEmpty { return .disconnected }
+            return .connected
+        }
+    }
 
-    private let queue = DispatchQueue(label: "com.facebridge.ble", qos: .userInitiated)
+    public func connectionState(for deviceId: UUID) -> ConnectionState {
+        state.withLock { $0.connectionStates[deviceId] ?? .disconnected }
+    }
 
     public override init() {
         super.init()
     }
 
+    public func authorizePeer(_ deviceId: UUID) {
+        _ = state.withLock { $0.authorizedPeers.insert(deviceId) }
+    }
+
+    public func deauthorizePeer(_ deviceId: UUID) {
+        _ = state.withLock { $0.authorizedPeers.remove(deviceId) }
+    }
+
     public func startDiscovery() {
-        centralManager = CBCentralManager(delegate: self, queue: queue)
+        let manager = CBCentralManager(delegate: self, queue: queue)
+        state.withLock { $0.centralManager = manager }
     }
 
     public func stopDiscovery() {
-        centralManager?.stopScan()
+        state.withLock { $0.centralManager?.stopScan() }
     }
 
     public func connect(to deviceId: UUID) async throws {
-        guard let peripheral = discoveredPeripherals[deviceId] else {
-            throw FaceBridgeError.transportUnavailable
+        try state.withLock { s in
+            guard let peripheral = s.discoveredPeripherals[deviceId] else {
+                throw FaceBridgeError.transportUnavailable
+            }
+            s.connectionStates[deviceId] = .connecting
+            s.centralManager?.connect(peripheral)
         }
-        connectionState = .connecting
-        centralManager?.connect(peripheral)
     }
 
     public func disconnect(from deviceId: UUID) async throws {
-        guard let peripheral = connectedPeripherals[deviceId] else { return }
-        connectionState = .disconnecting
-        centralManager?.cancelPeripheralConnection(peripheral)
+        state.withLock { s in
+            guard let peripheral = s.connectedPeripherals[deviceId] else { return }
+            s.connectionStates[deviceId] = .disconnecting
+            s.centralManager?.cancelPeripheralConnection(peripheral)
+        }
     }
 
     public func send(_ envelope: MessageEnvelope, to deviceId: UUID) async throws {
-        guard let peripheral = connectedPeripherals[deviceId] else {
-            throw FaceBridgeError.transportUnavailable
-        }
-
         let data = try encoder.encodeEnvelope(envelope)
+        let fragments = await fragmentationManager.fragment(data)
 
-        guard let service = peripheral.services?.first(where: { $0.uuid == Self.serviceUUID }),
-              let characteristic = service.characteristics?.first(where: { $0.uuid == Self.characteristicUUID })
-        else {
-            throw FaceBridgeError.transportUnavailable
+        try state.withLock { s in
+            guard let peripheral = s.connectedPeripherals[deviceId] else {
+                throw FaceBridgeError.transportUnavailable
+            }
+            guard let service = peripheral.services?.first(where: { $0.uuid == Self.serviceUUID }),
+                  let characteristic = service.characteristics?.first(where: { $0.uuid == Self.characteristicUUID })
+            else {
+                throw FaceBridgeError.transportUnavailable
+            }
+            for fragment in fragments {
+                peripheral.writeValue(fragment, for: characteristic, type: .withResponse)
+            }
         }
-
-        peripheral.writeValue(data, for: characteristic, type: .withResponse)
     }
 
     public func startAdvertising(displayName: String) {
-        peripheralManager = CBPeripheralManager(delegate: self, queue: queue)
+        let manager = CBPeripheralManager(delegate: self, queue: queue)
+        state.withLock { $0.peripheralManager = manager }
     }
 }
 
@@ -87,21 +123,25 @@ extension BLETransport: CBCentralManagerDelegate {
             rssi: RSSI.intValue,
             transportType: .ble
         )
-        discoveredPeripherals[peripheral.identifier] = peripheral
+        state.withLock { $0.discoveredPeripherals[peripheral.identifier] = peripheral }
         delegate?.transport(self, didDiscover: device)
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
-        connectionState = .connected
-        connectedPeripherals[peripheral.identifier] = peripheral
+        state.withLock { s in
+            s.connectionStates[peripheral.identifier] = .connected
+            s.connectedPeripherals[peripheral.identifier] = peripheral
+        }
         peripheral.delegate = self
         peripheral.discoverServices([Self.serviceUUID])
         delegate?.transport(self, didConnect: peripheral.identifier)
     }
 
     public func centralManager(_ central: CBCentralManager, didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
-        connectionState = .disconnected
-        connectedPeripherals.removeValue(forKey: peripheral.identifier)
+        state.withLock { s in
+            s.connectionStates[peripheral.identifier] = .disconnected
+            s.connectedPeripherals.removeValue(forKey: peripheral.identifier)
+        }
         delegate?.transport(self, didDisconnect: peripheral.identifier)
     }
 }
@@ -119,11 +159,25 @@ extension BLETransport: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral, didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
         guard let data = characteristic.value else { return }
-        do {
-            let envelope = try encoder.decodeEnvelope(from: data)
-            delegate?.transport(self, didReceive: envelope, from: peripheral.identifier)
-        } catch {
-            delegate?.transport(self, didFailWithError: .decodingFailed)
+        let isAuthorized = state.withLock { $0.authorizedPeers.contains(peripheral.identifier) }
+        guard isAuthorized else {
+            delegate?.transport(self, didFailWithError: .untrustedDevice)
+            return
+        }
+        guard data.count <= Self.maxReceiveSize else {
+            delegate?.transport(self, didFailWithError: .messageTooLarge(size: data.count, max: Self.maxReceiveSize))
+            return
+        }
+
+        Task { [weak self] in
+            guard let self else { return }
+            guard let reassembled = await self.fragmentationManager.reassemble(data) else { return }
+            do {
+                let envelope = try self.encoder.decodeEnvelope(from: reassembled)
+                self.delegate?.transport(self, didReceive: envelope, from: peripheral.identifier)
+            } catch {
+                self.delegate?.transport(self, didFailWithError: .decodingFailed)
+            }
         }
     }
 }
@@ -131,17 +185,14 @@ extension BLETransport: CBPeripheralDelegate {
 extension BLETransport: CBPeripheralManagerDelegate {
     public func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         guard peripheral.state == .poweredOn else { return }
-
         let characteristic = CBMutableCharacteristic(
             type: Self.characteristicUUID,
             properties: [.read, .write, .notify],
             value: nil,
-            permissions: [.readable, .writeable]
+            permissions: [.readEncryptionRequired, .writeEncryptionRequired]
         )
-
         let service = CBMutableService(type: Self.serviceUUID, primary: true)
         service.characteristics = [characteristic]
-
         peripheral.add(service)
         peripheral.startAdvertising([
             CBAdvertisementDataServiceUUIDsKey: [Self.serviceUUID],

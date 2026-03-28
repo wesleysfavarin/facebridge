@@ -1,4 +1,5 @@
 import Foundation
+import os
 import FaceBridgeCore
 
 public final class MenuBarController: @unchecked Sendable {
@@ -10,35 +11,43 @@ public final class MenuBarController: @unchecked Sendable {
         case error
     }
 
-    public private(set) var state: MenuBarState = .idle
+    private struct MutableState {
+        var menuState: MenuBarState = .idle
+    }
+
+    private let lock = OSAllocatedUnfairLock(initialState: MutableState())
     private let auditLogger: AuditLogger
+
+    public var state: MenuBarState {
+        lock.withLock { $0.menuState }
+    }
 
     public init(auditLogger: AuditLogger = AuditLogger()) {
         self.auditLogger = auditLogger
     }
 
     public func setWaiting() {
-        state = .waitingForApproval
+        lock.withLock { $0.menuState = .waitingForApproval }
     }
 
     public func setApproved() {
-        state = .approved
+        lock.withLock { $0.menuState = .approved }
         resetAfterDelay()
     }
 
     public func setDenied() {
-        state = .denied
+        lock.withLock { $0.menuState = .denied }
         resetAfterDelay()
     }
 
     public func setError() {
-        state = .error
+        lock.withLock { $0.menuState = .error }
         resetAfterDelay()
     }
 
     private func resetAfterDelay() {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3) { [weak self] in
-            self?.state = .idle
+            self?.lock.withLock { $0.menuState = .idle }
         }
     }
 }

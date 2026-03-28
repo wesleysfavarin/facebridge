@@ -14,11 +14,16 @@ public struct SecureEnclaveKeyManager: KeyManaging, Sendable {
     public init() {}
 
     public func generateKeyPair(tag: String) throws -> Data {
+        guard let tagData = tag.data(using: .utf8) else {
+            throw FaceBridgeError.keyGenerationFailed
+        }
+
+        var errorRef: Unmanaged<CFError>?
         let access = SecAccessControlCreateWithFlags(
             kCFAllocatorDefault,
             kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
-            [.privateKeyUsage],
-            nil
+            [.privateKeyUsage, .biometryCurrentSet],
+            &errorRef
         )
 
         guard let accessControl = access else {
@@ -31,7 +36,7 @@ public struct SecureEnclaveKeyManager: KeyManaging, Sendable {
             kSecAttrTokenID as String: kSecAttrTokenIDSecureEnclave,
             kSecPrivateKeyAttrs as String: [
                 kSecAttrIsPermanent as String: true,
-                kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
+                kSecAttrApplicationTag as String: tagData,
                 kSecAttrAccessControl as String: accessControl,
             ] as [String: Any],
         ]
@@ -85,9 +90,11 @@ public struct SecureEnclaveKeyManager: KeyManaging, Sendable {
     }
 
     public func deleteKey(tag: String) throws {
+        guard let tagData = tag.data(using: .utf8) else { return }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
+            kSecAttrApplicationTag as String: tagData,
             kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
         ]
 
@@ -98,19 +105,25 @@ public struct SecureEnclaveKeyManager: KeyManaging, Sendable {
     }
 
     private func loadPrivateKey(tag: String) throws -> SecKey {
+        guard let tagData = tag.data(using: .utf8) else {
+            throw FaceBridgeError.keychainError(status: errSecParam)
+        }
+
         let query: [String: Any] = [
             kSecClass as String: kSecClassKey,
-            kSecAttrApplicationTag as String: tag.data(using: .utf8)!,
+            kSecAttrApplicationTag as String: tagData,
             kSecAttrKeyType as String: kSecAttrKeyTypeECSECPrimeRandom,
             kSecReturnRef as String: true,
         ]
 
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess, let key = item else {
+        guard status == errSecSuccess else {
             throw FaceBridgeError.keychainError(status: status)
         }
-
-        return key as! SecKey
+        guard let ref = item, CFGetTypeID(ref) == SecKeyGetTypeID() else {
+            throw FaceBridgeError.keychainError(status: errSecInternalError)
+        }
+        return unsafeBitCast(ref, to: SecKey.self)
     }
 }

@@ -14,9 +14,9 @@ public actor PolicyEnforcer {
         policy = newPolicy
     }
 
-    public func enforce(session: Session, rssi: Int? = nil) async -> PolicyDecision {
+    public func enforce(session: Session, biometricVerified: Bool = false, rssi: Int? = nil) async -> PolicyDecision {
         let engine = PolicyEngine(policy: policy)
-        let decision = engine.evaluate(session: session, rssi: rssi)
+        let decision = engine.evaluate(session: session, biometricVerified: biometricVerified, rssi: rssi)
 
         if case .denied(let reason) = decision {
             await auditLogger.log(

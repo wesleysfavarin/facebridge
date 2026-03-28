@@ -20,16 +20,16 @@ public actor PairedDeviceManager {
         pairedDevices = Dictionary(uniqueKeysWithValues: devices.map { ($0.id, $0) })
     }
 
-    public func addPairedDevice(_ device: DeviceIdentity) throws {
+    public func addPairedDevice(_ device: DeviceIdentity) async throws {
         pairedDevices[device.id] = device
         try persistDevices()
-        Task { await auditLogger.log(.pairingCompleted, deviceId: device.id) }
+        await auditLogger.log(.pairingCompleted, deviceId: device.id)
     }
 
-    public func removePairedDevice(_ deviceId: UUID) throws {
+    public func removePairedDevice(_ deviceId: UUID) async throws {
         pairedDevices.removeValue(forKey: deviceId)
         try persistDevices()
-        Task { await auditLogger.log(.deviceRevoked, deviceId: deviceId) }
+        await auditLogger.log(.deviceRevoked, deviceId: deviceId)
     }
 
     public func isPaired(_ deviceId: UUID) -> Bool {

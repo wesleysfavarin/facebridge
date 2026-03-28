@@ -68,13 +68,28 @@ struct MacDevicesView: View {
 
 struct MacPairingView: View {
     @State private var pairingCode = "000000"
+    @State private var errorMessage: String?
+    private let controller = PairingFlowController()
 
     var body: some View {
         VStack {
             PairingCodeView(code: pairingCode)
 
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+
             Button("Generate New Code") {
-                pairingCode = String(format: "%06d", Int.random(in: 0...999_999))
+                Task {
+                    do {
+                        pairingCode = try await controller.generateInvitationCode()
+                        errorMessage = nil
+                    } catch {
+                        errorMessage = "Failed to generate code"
+                    }
+                }
             }
             .buttonStyle(.borderedProminent)
             .padding(.top)

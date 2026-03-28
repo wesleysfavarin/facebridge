@@ -2,77 +2,111 @@ import Foundation
 import FaceBridgeCore
 
 public struct PairingInvitation: Codable, Sendable {
-    public let id: UUID
-    public let version: ProtocolVersion
     public let deviceId: UUID
     public let displayName: String
     public let platform: DevicePlatform
     public let publicKeyData: Data
     public let pairingCode: String
+    public let signature: Data
     public let createdAt: Date
-    public let expiresAt: Date
-
-    public var isExpired: Bool { Date() > expiresAt }
 
     public init(
-        id: UUID = UUID(),
-        version: ProtocolVersion = .current,
         deviceId: UUID,
         displayName: String,
         platform: DevicePlatform,
         publicKeyData: Data,
         pairingCode: String,
-        createdAt: Date = Date(),
-        ttl: TimeInterval = 120
+        signature: Data,
+        createdAt: Date = Date()
     ) {
-        self.id = id
-        self.version = version
         self.deviceId = deviceId
         self.displayName = displayName
         self.platform = platform
         self.publicKeyData = publicKeyData
         self.pairingCode = pairingCode
+        self.signature = signature
         self.createdAt = createdAt
-        self.expiresAt = createdAt.addingTimeInterval(ttl)
+    }
+
+    public var signable: Data {
+        var payload = Data()
+        payload.append(Data(deviceId.uuidString.utf8))
+        payload.append(Data(displayName.utf8))
+        payload.append(Data(platform.rawValue.utf8))
+        payload.append(publicKeyData)
+        payload.append(Data(pairingCode.utf8))
+        return payload
     }
 }
 
 public struct PairingAcceptance: Codable, Sendable {
-    public let invitationId: UUID
-    public let version: ProtocolVersion
     public let deviceId: UUID
     public let displayName: String
     public let platform: DevicePlatform
     public let publicKeyData: Data
-    public let acceptedAt: Date
+    public let invitationDeviceId: UUID
+    public let signature: Data
+    public let createdAt: Date
 
     public init(
-        invitationId: UUID,
-        version: ProtocolVersion = .current,
         deviceId: UUID,
         displayName: String,
         platform: DevicePlatform,
         publicKeyData: Data,
-        acceptedAt: Date = Date()
+        invitationDeviceId: UUID,
+        signature: Data,
+        createdAt: Date = Date()
     ) {
-        self.invitationId = invitationId
-        self.version = version
         self.deviceId = deviceId
         self.displayName = displayName
         self.platform = platform
         self.publicKeyData = publicKeyData
-        self.acceptedAt = acceptedAt
+        self.invitationDeviceId = invitationDeviceId
+        self.signature = signature
+        self.createdAt = createdAt
+    }
+
+    public var signable: Data {
+        var payload = Data()
+        payload.append(Data(deviceId.uuidString.utf8))
+        payload.append(Data(displayName.utf8))
+        payload.append(Data(platform.rawValue.utf8))
+        payload.append(publicKeyData)
+        payload.append(Data(invitationDeviceId.uuidString.utf8))
+        return payload
     }
 }
 
 public struct PairingConfirmation: Codable, Sendable {
-    public let invitationId: UUID
+    public let deviceId: UUID
+    public let peerDeviceId: UUID
     public let confirmed: Bool
-    public let confirmedAt: Date
+    public let sas: String
+    public let signature: Data
+    public let createdAt: Date
 
-    public init(invitationId: UUID, confirmed: Bool, confirmedAt: Date = Date()) {
-        self.invitationId = invitationId
+    public init(
+        deviceId: UUID,
+        peerDeviceId: UUID,
+        confirmed: Bool,
+        sas: String,
+        signature: Data,
+        createdAt: Date = Date()
+    ) {
+        self.deviceId = deviceId
+        self.peerDeviceId = peerDeviceId
         self.confirmed = confirmed
-        self.confirmedAt = confirmedAt
+        self.sas = sas
+        self.signature = signature
+        self.createdAt = createdAt
+    }
+
+    public var signable: Data {
+        var payload = Data()
+        payload.append(Data(deviceId.uuidString.utf8))
+        payload.append(Data(peerDeviceId.uuidString.utf8))
+        payload.append(Data((confirmed ? "true" : "false").utf8))
+        payload.append(Data(sas.utf8))
+        return payload
     }
 }

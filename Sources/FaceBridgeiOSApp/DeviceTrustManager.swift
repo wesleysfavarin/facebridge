@@ -20,20 +20,24 @@ public actor DeviceTrustManager {
         trustedDevices = Dictionary(uniqueKeysWithValues: devices.map { ($0.id, $0) })
     }
 
-    public func addTrustedDevice(_ device: DeviceIdentity) throws {
+    public func addTrustedDevice(_ device: DeviceIdentity) async throws {
         trustedDevices[device.id] = device
         try persistDevices()
-        Task { await auditLogger.log(.pairingCompleted, deviceId: device.id) }
+        await auditLogger.log(.pairingCompleted, deviceId: device.id)
     }
 
-    public func removeTrustedDevice(_ deviceId: UUID) throws {
+    public func removeTrustedDevice(_ deviceId: UUID) async throws {
         trustedDevices.removeValue(forKey: deviceId)
         try persistDevices()
-        Task { await auditLogger.log(.deviceRevoked, deviceId: deviceId) }
+        await auditLogger.log(.deviceRevoked, deviceId: deviceId)
     }
 
     public func isTrusted(_ deviceId: UUID) -> Bool {
         trustedDevices[deviceId] != nil
+    }
+
+    public func publicKey(for deviceId: UUID) -> Data? {
+        trustedDevices[deviceId]?.publicKeyData
     }
 
     public func device(for id: UUID) -> DeviceIdentity? {
