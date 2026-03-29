@@ -50,12 +50,18 @@ struct FaceBridgeMacAppMain: App {
                     }
                     Divider()
 
-                    Button("Request Face ID Authorization") {
-                        coordinator.requestAuthorization(reason: "Authorize action from menu bar")
-                    }
+                    Text("Protected Actions")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
 
                     Button("Unlock Secure Vault") {
                         coordinator.requestVaultUnlock()
+                    }
+                    Button("Run Protected Command") {
+                        coordinator.requestDemoCommand()
+                    }
+                    Button("Reveal Protected File") {
+                        coordinator.requestFileReveal()
                     }
 
                     if coordinator.authPhase == .waitingForApproval {

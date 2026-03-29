@@ -290,6 +290,42 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         log("authorization", "Denied by user")
     }
 
+    // MARK: - Device Management
+
+    public func removeTrustedDevice(_ deviceId: UUID) {
+        Task {
+            do {
+                try await trustManager.removeTrustedDevice(deviceId)
+                let devices = await trustManager.allTrustedDevices()
+                await MainActor.run {
+                    self.trustedDevices = devices
+                    if devices.isEmpty {
+                        self.connectionStatus = .searching
+                    }
+                }
+                rebuildMergedDevices()
+                log("devices", "Removed trusted device \(deviceId.uuidString.prefix(8))")
+            } catch {
+                log("devices", "Failed to remove device: \(error)")
+            }
+        }
+    }
+
+    public func removeAllTrustedDevices() {
+        Task {
+            for device in trustedDevices {
+                try? await trustManager.removeTrustedDevice(device.id)
+            }
+            let devices = await trustManager.allTrustedDevices()
+            await MainActor.run {
+                self.trustedDevices = devices
+                self.connectionStatus = .searching
+            }
+            rebuildMergedDevices()
+            log("devices", "Removed all trusted devices")
+        }
+    }
+
     // MARK: - Device Deduplication
 
     public func rebuildMergedDevices() {

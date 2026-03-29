@@ -55,7 +55,9 @@ public struct AuthorizationRequest: Codable, Sendable {
         appendField(challenge)
         appendField(Data(reason.utf8))
         appendField(Data(transportType.utf8))
-        var timestamp = UInt64(createdAt.timeIntervalSince1970 * 1000).bigEndian
+        // Use whole seconds — ISO 8601 encoding drops sub-second precision,
+        // so milliseconds would cause Mac/iPhone signable mismatch.
+        var timestamp = UInt64(createdAt.timeIntervalSince1970).bigEndian
         let tsData = Data(bytes: &timestamp, count: 8)
         appendField(tsData)
         return payload

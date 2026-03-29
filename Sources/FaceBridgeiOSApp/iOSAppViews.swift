@@ -144,8 +144,18 @@ struct iOSDashboardView: View {
                     if !coordinator.trustedDevices.isEmpty {
                         GroupBox {
                             VStack(alignment: .leading, spacing: 12) {
-                                Label("Trusted Devices", systemImage: "checkmark.shield")
-                                    .font(.headline)
+                                HStack {
+                                    Label("Trusted Devices", systemImage: "checkmark.shield")
+                                        .font(.headline)
+                                    Spacer()
+                                    Text("\(coordinator.trustedDevices.count)")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 2)
+                                        .background(.secondary.opacity(0.1))
+                                        .clipShape(Capsule())
+                                }
 
                                 ForEach(coordinator.trustedDevices, id: \.id) { device in
                                     HStack(spacing: 12) {
@@ -157,13 +167,18 @@ struct iOSDashboardView: View {
                                             Text(device.displayName)
                                                 .font(.body)
                                                 .fontWeight(.medium)
-                                            Text(device.platform.rawValue)
+                                            Text("\(device.platform.rawValue) · \(device.id.uuidString.prefix(8))")
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                         }
                                         Spacer()
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .foregroundStyle(.green)
+                                        Button(role: .destructive) {
+                                            coordinator.removeTrustedDevice(device.id)
+                                        } label: {
+                                            Image(systemName: "xmark.circle.fill")
+                                                .foregroundStyle(.secondary)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
                                     .padding(.vertical, 4)
                                 }
@@ -429,11 +444,18 @@ struct PairingSheet: View {
     }
 }
 
-// MARK: - Face ID Auth Sheet (Phase 7)
+// MARK: - Face ID Auth Sheet
 
 struct FaceIDAuthSheet: View {
     @EnvironmentObject var coordinator: iOSCoordinator
-    @State private var authTriggered = false
+
+    private var actionIcon: String {
+        guard let reason = coordinator.pendingAuthRequest?.reason else { return "faceid" }
+        if reason.contains("Vault") { return "lock.shield" }
+        if reason.contains("Command") { return "terminal" }
+        if reason.contains("File") { return "doc.text.magnifyingglass" }
+        return "faceid"
+    }
 
     var body: some View {
         VStack(spacing: 24) {
@@ -444,26 +466,36 @@ struct FaceIDAuthSheet: View {
                 Text("Verifying with Face ID…")
                     .font(.headline)
                     .foregroundStyle(.blue)
-            } else {
-                Image(systemName: "faceid")
+                Text("Look at your iPhone to authorize")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if coordinator.lastAuthResult == "Approved" && coordinator.pendingAuthRequest == nil {
+                Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 64))
-                    .foregroundStyle(.blue)
-                    .symbolEffect(.pulse, isActive: !authTriggered)
-
-                Text("Authorization Request")
+                    .foregroundStyle(.green)
+                Text("Authorized")
                     .font(.title2)
                     .fontWeight(.semibold)
+                    .foregroundStyle(.green)
+                Text("Response sent back to your Mac")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Image(systemName: actionIcon)
+                    .font(.system(size: 64))
+                    .foregroundStyle(.blue)
+                    .symbolEffect(.pulse, isActive: true)
+
+                Text("Authorize request from your Mac")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 if let request = coordinator.pendingAuthRequest {
                     Text(String(request.reason.prefix(200)))
-                        .font(.body)
-                        .foregroundStyle(.secondary)
+                        .font(.title3)
+                        .fontWeight(.semibold)
                         .multilineTextAlignment(.center)
                         .padding(.horizontal)
-                } else {
-                    Text("Authorize request from your Mac")
-                        .font(.body)
-                        .foregroundStyle(.secondary)
                 }
 
                 HStack(spacing: 16) {
@@ -490,13 +522,6 @@ struct FaceIDAuthSheet: View {
             }
         }
         .padding(24)
-        .onAppear {
-            guard !authTriggered else { return }
-            authTriggered = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                coordinator.approveAuth()
-            }
-        }
     }
 }
 
@@ -504,6 +529,7 @@ struct FaceIDAuthSheet: View {
 
 struct iOSDevicesView: View {
     @EnvironmentObject var coordinator: iOSCoordinator
+    @State private var showRemoveAllConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -526,6 +552,9 @@ struct iOSDevicesView: View {
                                     Text(device.displayName)
                                         .font(.body)
                                         .fontWeight(.medium)
+                                    Text("ID: \(device.id.uuidString.prefix(8))")
+                                        .font(.caption2)
+                                        .foregroundStyle(.tertiary)
                                     Text("Paired \(device.createdAt, style: .relative) ago")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
@@ -535,7 +564,30 @@ struct iOSDevicesView: View {
                                     .foregroundStyle(.green)
                             }
                             .padding(.vertical, 4)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    coordinator.removeTrustedDevice(device.id)
+                                } label: {
+                                    Label("Remove", systemImage: "trash")
+                                }
+                            }
                         }
+
+                        Section {
+                            Button(role: .destructive) {
+                                showRemoveAllConfirmation = true
+                            } label: {
+                                Label("Remove All Devices", systemImage: "trash.fill")
+                            }
+                        }
+                    }
+                    .alert("Remove All Devices?", isPresented: $showRemoveAllConfirmation) {
+                        Button("Cancel", role: .cancel) {}
+                        Button("Remove All", role: .destructive) {
+                            coordinator.removeAllTrustedDevices()
+                        }
+                    } message: {
+                        Text("This will unpair all trusted devices. You will need to pair again.")
                     }
                 }
             }

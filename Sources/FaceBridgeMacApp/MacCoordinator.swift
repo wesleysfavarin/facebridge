@@ -26,6 +26,11 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     @Published public var isVaultUnlocked: Bool = false
     @Published public var vaultUnlockedAt: Date?
 
+    @Published public var activeAction: ProtectedAction? = nil
+    @Published public var demoCommandResult: String = ""
+    @Published public var isFileRevealed: Bool = false
+    @Published public var protectedFileContent: String = ""
+
     @Published public var developerModeEnabled: Bool {
         didSet { UserDefaults.standard.set(developerModeEnabled, forKey: "fb_mac_developer_mode") }
     }
@@ -48,9 +53,29 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
         case sending = "Sending request…"
         case waitingForApproval = "Waiting for iPhone…"
         case approved = "Approved"
-        case denied = "Denied"
-        case expired = "Expired"
-        case failed = "Failed"
+        case denied = "Denied by user on iPhone"
+        case expired = "Session expired"
+        case noTrustedDevice = "No trusted device connected"
+        case transportUnavailable = "Device connected but transport unavailable"
+        case sendFailed = "Request delivery failed"
+        case peerDisconnected = "Peer disconnected"
+        case verificationFailed = "Response verification failed"
+    }
+
+    public enum ProtectedAction: String, CaseIterable {
+        case genericAuth = "Authorize action"
+        case unlockVault = "Unlock Secure Vault"
+        case demoCommand = "Run Protected Demo Command"
+        case revealFile = "Reveal Protected File"
+
+        var icon: String {
+            switch self {
+            case .genericAuth: return "faceid"
+            case .unlockVault: return "lock.shield"
+            case .demoCommand: return "terminal"
+            case .revealFile: return "doc.text.magnifyingglass"
+            }
+        }
     }
 
     public struct NearbyDevice: Identifiable, Hashable {
@@ -179,56 +204,245 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
 
     // MARK: - Authorization
 
-    public func requestAuthorization(reason: String) {
-        guard let device = mergedNearbyDevices.first(where: { $0.isTrusted }),
-              let transportId = device.transportIds.first else {
+    public func requestAuthorization(reason: String, action: ProtectedAction = .genericAuth) {
+        activeAction = action
+
+        guard let targetId = bestAvailableTransportId() else {
             if pairedDevices.isEmpty {
                 log("authorization", "No paired devices — pair your iPhone first")
                 lastAuthResult = "No paired device"
+                authPhase = .noTrustedDevice
+            } else if deviceTransportMap.isEmpty && mergedNearbyDevices.isEmpty {
+                log("authorization", "No devices reachable — iPhone may be offline")
+                lastAuthResult = "No device reachable"
+                authPhase = .peerDisconnected
             } else {
-                log("authorization", "Paired device not nearby")
-                lastAuthResult = "Device not nearby"
+                log("authorization", "Device visible but no live transport connection")
+                lastAuthResult = "Transport unavailable"
+                authPhase = .transportUnavailable
             }
-            authPhase = .failed
             return
         }
-        sendAuthorizationRequest(to: transportId, reason: reason)
+
+        log("authorization", "[route] Selected transport \(targetId.uuidString.prefix(8)) for action: \(action.rawValue)")
+        sendAuthorizationRequest(to: targetId, reason: reason)
+    }
+
+    /// Deterministic routing: prefer connected transport entries, then trusted nearby, then any nearby.
+    private func bestAvailableTransportId() -> UUID? {
+        for (id, _) in deviceTransportMap {
+            log("routing", "[check] deviceTransportMap entry: \(id.uuidString.prefix(8))")
+            return id
+        }
+
+        if let device = mergedNearbyDevices.first(where: { $0.isTrusted && $0.isConnected }),
+           let id = device.transportIds.first {
+            log("routing", "[check] trusted+connected nearby: \(device.friendlyName)")
+            return id
+        }
+
+        if let device = mergedNearbyDevices.first(where: { $0.isConnected }),
+           let id = device.transportIds.first {
+            log("routing", "[check] connected nearby: \(device.friendlyName)")
+            return id
+        }
+
+        if let device = mergedNearbyDevices.first,
+           let id = device.transportIds.first {
+            log("routing", "[check] nearby (will attempt connect): \(device.friendlyName)")
+            return id
+        }
+
+        log("routing", "[check] no available transport target")
+        return nil
     }
 
     public func requestVaultUnlock() {
         isVaultUnlocked = false
-        requestAuthorization(reason: "Unlock Secure Vault on your Mac")
+        requestAuthorization(reason: "Unlock Secure Vault on your Mac", action: .unlockVault)
+    }
+
+    public func requestDemoCommand() {
+        demoCommandResult = ""
+        requestAuthorization(reason: "Run Protected Demo Command on your Mac", action: .demoCommand)
+    }
+
+    public func requestFileReveal() {
+        isFileRevealed = false
+        protectedFileContent = ""
+        requestAuthorization(reason: "Reveal Protected File on your Mac", action: .revealFile)
     }
 
     public func lockVault() {
         isVaultUnlocked = false
         vaultUnlockedAt = nil
-        log("vault", "Vault locked")
+        log("vault", "Vault locked by user")
+    }
+
+    public func hideProtectedFile() {
+        isFileRevealed = false
+        protectedFileContent = ""
+        log("file", "Protected file hidden by user")
+    }
+
+    private func executeProtectedAction(_ action: ProtectedAction) {
+        switch action {
+        case .genericAuth:
+            log("action", "Generic authorization approved")
+        case .unlockVault:
+            isVaultUnlocked = true
+            vaultUnlockedAt = Date()
+            log("vault", "Secure Vault UNLOCKED via Face ID")
+        case .demoCommand:
+            executeDemoCommand()
+        case .revealFile:
+            revealProtectedFileContent()
+        }
+    }
+
+    private func executeDemoCommand() {
+        log("action", "Executing protected demo command…")
+        #if os(macOS)
+        let task = Process()
+        task.executableURL = URL(fileURLWithPath: "/usr/bin/open")
+        task.arguments = ["/Applications/Safari.app"]
+        do {
+            try task.run()
+            task.waitUntilExit()
+            demoCommandResult = task.terminationStatus == 0
+                ? "Safari opened successfully"
+                : "Command exited with code \(task.terminationStatus)"
+            log("action", "Demo command result: \(demoCommandResult)")
+        } catch {
+            demoCommandResult = "Failed to run command: \(error.localizedDescription)"
+            log("action", "Demo command failed: \(error)")
+        }
+        #else
+        demoCommandResult = "Demo command not available on this platform"
+        #endif
+    }
+
+    private func revealProtectedFileContent() {
+        log("action", "Revealing protected file…")
+        protectedFileContent = """
+        ╔══════════════════════════════════════════════╗
+        ║         FACEBRIDGE PROTECTED FILE            ║
+        ╠══════════════════════════════════════════════╣
+        ║                                              ║
+        ║  Classification: TOP SECRET                  ║
+        ║  Project: FaceBridge Alpha                   ║
+        ║  Created: 2026-03-29                         ║
+        ║                                              ║
+        ║  API Endpoint:                               ║
+        ║  https://api.facebridge.io/v1/auth           ║
+        ║                                              ║
+        ║  Master Token:                               ║
+        ║  fb_master_tk_9x3KmP7vRn2LqW8               ║
+        ║                                              ║
+        ║  Encryption Key (AES-256):                   ║
+        ║  a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6           ║
+        ║  e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2           ║
+        ║                                              ║
+        ║  This file was revealed via Face ID          ║
+        ║  authorization from your paired iPhone.      ║
+        ║                                              ║
+        ╚══════════════════════════════════════════════╝
+        """
+        isFileRevealed = true
+        log("file", "Protected file content revealed")
+    }
+
+    // MARK: - Device Management
+
+    public func removePairedDevice(_ deviceId: UUID) {
+        Task {
+            do {
+                try await deviceManager.removePairedDevice(deviceId)
+                let devices = await deviceManager.allPairedDevices()
+                await MainActor.run {
+                    self.pairedDevices = devices
+                    if devices.isEmpty {
+                        self.connectionStatus = .searching
+                        self.isVaultUnlocked = false
+                        self.vaultUnlockedAt = nil
+                    }
+                }
+                rebuildMergedDevices()
+                log("devices", "Removed paired device \(deviceId.uuidString.prefix(8))")
+            } catch {
+                log("devices", "Failed to remove device: \(error)")
+            }
+        }
+    }
+
+    public func removeAllPairedDevices() {
+        Task {
+            for device in pairedDevices {
+                try? await deviceManager.removePairedDevice(device.id)
+            }
+            let devices = await deviceManager.allPairedDevices()
+            await MainActor.run {
+                self.pairedDevices = devices
+                self.connectionStatus = .searching
+                self.isVaultUnlocked = false
+                self.vaultUnlockedAt = nil
+            }
+            rebuildMergedDevices()
+            log("devices", "Removed all paired devices")
+        }
     }
 
     public func sendAuthorizationRequest(to deviceId: UUID, reason: String) {
         authPhase = .sending
         Task {
             do {
-                log("authorization", "[auth_req] Creating request (reason: \(reason))")
-                try await ensureConnected(to: deviceId)
+                log("authorization", "[auth_req] Creating request for: \(reason)")
+                log("authorization", "[auth_req] Target transport: \(deviceId.uuidString.prefix(8))")
+
+                if deviceTransportMap[deviceId] == nil {
+                    do {
+                        try await lanTransport.connect(to: deviceId)
+                        deviceTransportMap[deviceId] = lanTransport
+                        log("authorization", "[auth_req] Connected via LAN")
+                    } catch {
+                        log("authorization", "[auth_req] LAN connect failed, checking existing connections…")
+                        if let (existingId, _) = deviceTransportMap.first, existingId != deviceId {
+                            log("authorization", "[auth_req] Falling back to existing connection \(existingId.uuidString.prefix(8))")
+                            return sendAuthorizationRequest(to: existingId, reason: reason)
+                        }
+                        throw error
+                    }
+                }
+
                 let request = try await requester.createRequest(
                     senderDeviceId: localDeviceId, keyTag: keyTag,
-                    reason: reason, transportType: "lan", ttl: 30
+                    reason: reason, transportType: "lan", ttl: 60
                 )
                 let envelope = try encoder.encode(request, type: .authorizationRequest, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
                 pendingRequests[request.id] = request
-                log("authorization", "[auth_req] Request sent (id=\(request.id.uuidString.prefix(8)))")
+                log("authorization", "[auth_req] Request DELIVERED (id=\(request.id.uuidString.prefix(8)))")
                 await MainActor.run {
                     self.authPhase = .waitingForApproval
                     self.lastAuthResult = "Waiting for iPhone…"
                 }
             } catch {
-                log("authorization", "[auth_req] Send failed: \(error)")
+                log("authorization", "[auth_req] SEND FAILED: \(error)")
+                let phase: AuthorizationPhase
+                let message: String
+                if "\(error)".contains("transportUnavailable") {
+                    phase = .transportUnavailable
+                    message = "Transport unavailable — try reconnecting"
+                } else if "\(error)".contains("Disconnected") || "\(error)".contains("cancelled") {
+                    phase = .peerDisconnected
+                    message = "iPhone disconnected during send"
+                } else {
+                    phase = .sendFailed
+                    message = "Send failed: \(error.localizedDescription)"
+                }
                 await MainActor.run {
-                    self.authPhase = .failed
-                    self.lastAuthResult = "Send failed"
+                    self.authPhase = phase
+                    self.lastAuthResult = message
                 }
             }
         }
@@ -255,10 +469,11 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
                 )
                 merged[key] = existing
             } else {
-                let isTrusted = pairedDevices.contains { friendlyName(for: $0.displayName) == key }
+                let matchedPaired = matchPairedDevice(forNearbyName: key)
+                let isTrusted = matchedPaired != nil
                 merged[key] = NearbyDevice(
                     id: device.id, friendlyName: key,
-                    platform: isTrusted ? pairedDevices.first(where: { friendlyName(for: $0.displayName) == key })?.platform : nil,
+                    platform: matchedPaired?.platform,
                     isTrusted: isTrusted, transportIds: [device.id],
                     isConnected: deviceTransportMap[device.id] != nil
                 )
@@ -267,6 +482,26 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
 
         mergedNearbyDevices = Array(merged.values).sorted { ($0.isTrusted ? 0 : 1) < ($1.isTrusted ? 0 : 1) }
         updateConnectionStatus()
+    }
+
+    private func matchPairedDevice(forNearbyName nearbyName: String) -> DeviceIdentity? {
+        let n = nearbyName.lowercased()
+        if let exact = pairedDevices.first(where: { friendlyName(for: $0.displayName).lowercased() == n }) {
+            return exact
+        }
+        if let prefix = pairedDevices.first(where: {
+            let p = friendlyName(for: $0.displayName).lowercased()
+            return n.hasPrefix(p) || p.hasPrefix(n)
+        }) {
+            return prefix
+        }
+        if let contains = pairedDevices.first(where: {
+            let p = friendlyName(for: $0.displayName).lowercased()
+            return n.contains(p) || p.contains(n)
+        }) {
+            return contains
+        }
+        return nil
     }
 
     public func friendlyNamePublic(for rawName: String) -> String {
@@ -431,61 +666,66 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
                 log("authorization", "[auth_resp] decision=\(response.decision.rawValue) requestId=\(response.requestId.uuidString.prefix(8))")
 
                 guard let originalRequest = pendingRequests.removeValue(forKey: response.requestId) else {
-                    log("authorization", "[auth_resp] No pending request for this ID")
-                    await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Unknown request" }
+                    log("authorization", "[auth_resp] No pending request for this ID — ignoring")
+                    await MainActor.run { self.authPhase = .verificationFailed; self.lastAuthResult = "Unknown request ID" }
                     return
                 }
 
                 let pubKey = await deviceManager.publicKey(for: response.responderDeviceId)
                 guard let trustedKey = pubKey else {
                     log("authorization", "[auth_resp] Responder \(response.responderDeviceId.uuidString.prefix(8)) not in paired devices")
-                    await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Unknown responder" }
+                    await MainActor.run { self.authPhase = .verificationFailed; self.lastAuthResult = "Unknown responder device" }
                     return
                 }
 
-                log("authorization", "[auth_resp] Verifying signature…")
+                log("authorization", "[auth_resp] Verifying cryptographic signature…")
                 let valid = try await requester.verify(
                     response: response, originalRequest: originalRequest, trustedPublicKey: trustedKey
                 )
 
-                let resultText: String
-                let phase: AuthorizationPhase
+                let currentAction = self.activeAction ?? .genericAuth
+
                 if valid {
-                    resultText = "Approved"
-                    phase = .approved
-                    log("authorization", "[auth_resp] APPROVED — signature valid, decision=approved")
+                    log("authorization", "[auth_resp] APPROVED — signature valid, executing action: \(currentAction.rawValue)")
+                    await MainActor.run {
+                        self.authPhase = .approved
+                        self.lastAuthResult = "Approved"
+                        self.lastAuthTimestamp = Date()
+                        self.executeProtectedAction(currentAction)
+                        self.activeAction = nil
+                    }
                 } else if response.decision == .denied {
-                    resultText = "Denied"
-                    phase = .denied
-                    log("authorization", "[auth_resp] DENIED by user")
+                    log("authorization", "[auth_resp] DENIED by user on iPhone")
+                    await MainActor.run {
+                        self.authPhase = .denied
+                        self.lastAuthResult = "Denied by user on iPhone"
+                        self.lastAuthTimestamp = Date()
+                        self.activeAction = nil
+                    }
                 } else if response.decision == .expired {
-                    resultText = "Expired"
-                    phase = .expired
-                    log("authorization", "[auth_resp] Request EXPIRED")
+                    log("authorization", "[auth_resp] Session EXPIRED")
+                    await MainActor.run {
+                        self.authPhase = .expired
+                        self.lastAuthResult = "Session expired before approval"
+                        self.lastAuthTimestamp = Date()
+                        self.activeAction = nil
+                    }
                 } else {
-                    resultText = "Invalid"
-                    phase = .failed
-                    log("authorization", "[auth_resp] Invalid response")
-                }
-
-                let shouldUnlockVault = valid && originalRequest.reason.contains("Vault")
-
-                await MainActor.run {
-                    self.authPhase = phase
-                    self.lastAuthResult = resultText
-                    self.lastAuthTimestamp = Date()
-                    if shouldUnlockVault {
-                        self.isVaultUnlocked = true
-                        self.vaultUnlockedAt = Date()
+                    log("authorization", "[auth_resp] Verification FAILED — signature invalid")
+                    await MainActor.run {
+                        self.authPhase = .verificationFailed
+                        self.lastAuthResult = "Response signature invalid"
+                        self.lastAuthTimestamp = Date()
+                        self.activeAction = nil
                     }
                 }
-
-                if shouldUnlockVault {
-                    log("vault", "Secure Vault UNLOCKED via Face ID authorization")
-                }
             } catch {
-                log("authorization", "[auth_resp] Verification failed: \(error)")
-                await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Verification failed" }
+                log("authorization", "[auth_resp] Verification error: \(error)")
+                await MainActor.run {
+                    self.authPhase = .verificationFailed
+                    self.lastAuthResult = "Verification error: \(error.localizedDescription)"
+                    self.activeAction = nil
+                }
             }
         }
     }
