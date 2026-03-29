@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import os
+import LocalAuthentication
 import FaceBridgeCore
 import FaceBridgeCrypto
 import FaceBridgeProtocol
@@ -162,17 +163,35 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         guard let request = pendingAuthRequest, let deviceId = pendingAuthDeviceId else { return }
         Task {
             do {
+                log("authorization", "Requesting Face ID authentication…")
+                try await authenticateWithBiometrics(reason: request.reason)
+                log("authorization", "Face ID succeeded — signing response")
+
                 try await ensureConnected(to: deviceId)
                 let response = try await responder.respond(to: request, keyTag: keyTag)
                 let envelope = try encoder.encode(response, type: .authorizationResponse, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
 
                 await MainActor.run {
-                    self.lastAuthResult = "Response sent: \(response.decision.rawValue)"
+                    self.lastAuthResult = "Approved (Face ID verified)"
                     self.pendingAuthRequest = nil
                     self.pendingAuthDeviceId = nil
                 }
                 log("authorization", "Response sent: \(response.decision.rawValue)")
+            } catch let error as LAError where error.code == .userCancel || error.code == .userFallback {
+                log("authorization", "Face ID cancelled by user")
+                await MainActor.run {
+                    self.lastAuthResult = "Cancelled — Face ID not completed"
+                    self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                }
+            } catch let error as LAError {
+                log("authorization", "Face ID failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.lastAuthResult = "Face ID failed: \(error.localizedDescription)"
+                    self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                }
             } catch {
                 log("authorization", "Failed to respond: \(error)")
                 await MainActor.run {
@@ -181,6 +200,21 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                 }
             }
         }
+    }
+
+    private func authenticateWithBiometrics(reason: String) async throws {
+        let context = LAContext()
+        context.localizedFallbackTitle = ""
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            log("authorization", "Biometrics unavailable: \(error?.localizedDescription ?? "unknown")")
+            throw error ?? LAError(.biometryNotAvailable) as NSError
+        }
+        let sanitizedReason = String(reason.prefix(200))
+        try await context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: sanitizedReason.isEmpty ? "Authorize Mac request" : sanitizedReason
+        )
     }
 
     public func denyAuth() {

@@ -48,6 +48,9 @@ public struct iOSMainView: View {
                 onDeny: { coordinator.denyAuth() }
             )
             .presentationDetents([.medium])
+            .onAppear {
+                coordinator.approveAuth()
+            }
         }
     }
 }
@@ -58,6 +61,7 @@ struct iOSDebugView: View {
     @EnvironmentObject var coordinator: iOSCoordinator
     @State private var pairingCode = ""
     @State private var selectedDeviceId: UUID?
+    @FocusState private var isPairingFieldFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -100,13 +104,16 @@ struct iOSDebugView: View {
                             HStack {
                                 TextField("Enter pairing code", text: $pairingCode)
                                     .textFieldStyle(.roundedBorder)
+                                    .focused($isPairingFieldFocused)
                                     #if os(iOS)
                                     .keyboardType(.numberPad)
                                     #endif
 
                                 Button("Pair") {
                                     guard let deviceId = selectedDeviceId else { return }
+                                    isPairingFieldFocused = false
                                     coordinator.submitPairingCode(pairingCode, toDeviceId: deviceId)
+                                    pairingCode = ""
                                 }
                                 .buttonStyle(.borderedProminent)
                                 .disabled(pairingCode.count != 6 || selectedDeviceId == nil)
