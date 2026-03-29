@@ -252,18 +252,20 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                     self.pendingAuthDeviceId = nil
                     self.authProcessing = false
                 }
-            } catch let error as FaceBridgeError where error == .biometricUserCancelled || error == .biometricSystemCancelled {
-                log("authorization", "[auth] Face ID cancelled by user")
+            } catch let error as FaceBridgeError {
+                let (resultText, logMsg): (String, String) = {
+                    switch error {
+                    case .biometricUserCancelled, .biometricSystemCancelled:
+                        return ("Cancelled", "[auth] Face ID cancelled by user")
+                    case .untrustedDevice:
+                        return ("Untrusted sender", "[auth] Sender not trusted — rejecting")
+                    default:
+                        return ("Error", "[auth] FaceBridge error: \(error)")
+                    }
+                }()
+                log("authorization", logMsg)
                 await MainActor.run {
-                    self.lastAuthResult = "Cancelled"
-                    self.pendingAuthRequest = nil
-                    self.pendingAuthDeviceId = nil
-                    self.authProcessing = false
-                }
-            } catch let error as FaceBridgeError where error == .untrustedDevice {
-                log("authorization", "[auth] Sender not trusted — rejecting")
-                await MainActor.run {
-                    self.lastAuthResult = "Untrusted sender"
+                    self.lastAuthResult = resultText
                     self.pendingAuthRequest = nil
                     self.pendingAuthDeviceId = nil
                     self.authProcessing = false
