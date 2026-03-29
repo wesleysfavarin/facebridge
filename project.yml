@@ -1,0 +1,155 @@
+name: FaceBridge
+options:
+  bundleIdPrefix: com.facebridge
+  deploymentTarget:
+    iOS: "17.0"
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: false
+  groupSortPosition: top
+
+packages:
+  FaceBridge:
+    path: .
+
+targets:
+  FaceBridgeiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources/FaceBridgeiOSApp
+        excludes:
+          - "**/*Tests*"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.facebridge.ios
+        PRODUCT_NAME: FaceBridge
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: App/iOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/iOS/FaceBridgeiOS.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_PREVIEWS: true
+    dependencies:
+      - package: FaceBridge
+        product: FaceBridgeCore
+      - package: FaceBridge
+        product: FaceBridgeCrypto
+      - package: FaceBridge
+        product: FaceBridgeProtocol
+      - package: FaceBridge
+        product: FaceBridgeTransport
+      - package: FaceBridge
+        product: FaceBridgeSharedUI
+    preBuildScripts: []
+
+  FaceBridgeMac:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/FaceBridgeMacApp
+        excludes:
+          - "**/*Tests*"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.facebridge.mac
+        PRODUCT_NAME: FaceBridge Mac
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: App/macOS/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/macOS/FaceBridgeMac.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_PREVIEWS: true
+        ENABLE_HARDENED_RUNTIME: false
+    dependencies:
+      - package: FaceBridge
+        product: FaceBridgeCore
+      - package: FaceBridge
+        product: FaceBridgeCrypto
+      - package: FaceBridge
+        product: FaceBridgeProtocol
+      - package: FaceBridge
+        product: FaceBridgeTransport
+      - package: FaceBridge
+        product: FaceBridgeSharedUI
+
+  FaceBridgeAgent:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Sources/FaceBridgeMacAgent
+        excludes:
+          - "**/*Tests*"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.facebridge.agent
+        PRODUCT_NAME: FaceBridgeAgent
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_FILE: App/macOSAgent/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/macOSAgent/FaceBridgeAgent.entitlements
+        CODE_SIGN_STYLE: Automatic
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: false
+        ENABLE_HARDENED_RUNTIME: false
+    dependencies:
+      - package: FaceBridge
+        product: FaceBridgeCore
+      - package: FaceBridge
+        product: FaceBridgeCrypto
+      - package: FaceBridge
+        product: FaceBridgeProtocol
+      - package: FaceBridge
+        product: FaceBridgeTransport
+
+schemes:
+  FaceBridgeiOS:
+    build:
+      targets:
+        FaceBridgeiOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  FaceBridgeMac:
+    build:
+      targets:
+        FaceBridgeMac: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  FaceBridgeAgent:
+    build:
+      targets:
+        FaceBridgeAgent: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

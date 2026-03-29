@@ -18,6 +18,7 @@ public final class LocalNetworkTransport: Transport, @unchecked Sendable {
         var listener: NWListener?
         var connections: [UUID: NWConnection] = [:]
         var endpointToDevice: [NWEndpoint: UUID] = [:]
+        var deviceToEndpoint: [UUID: NWEndpoint] = [:]
         var connectionTimestamps: [UUID: Date] = [:]
     }
 
@@ -33,9 +34,6 @@ public final class LocalNetworkTransport: Transport, @unchecked Sendable {
         state.withLock { $0.connectionState }
     }
 
-    /// - Parameters:
-    ///   - tlsOptions: Custom TLS options. If nil, uses default TLS with insecure local identity.
-    ///   - allowInsecure: If true, allows plaintext TCP. Debug/test use ONLY.
     public init(tlsOptions: NWProtocolTLS.Options? = nil, allowInsecure: Bool = false) {
         self.allowInsecure = allowInsecure
         if let tlsOptions {
@@ -91,7 +89,65 @@ public final class LocalNetworkTransport: Transport, @unchecked Sendable {
     }
 
     public func connect(to deviceId: UUID) async throws {
-        throw FaceBridgeError.transportUnavailable
+        let endpoint: NWEndpoint? = state.withLock { $0.deviceToEndpoint[deviceId] }
+        guard let endpoint else {
+            throw FaceBridgeError.transportUnavailable
+        }
+
+        let alreadyConnected: Bool = state.withLock { $0.connections[deviceId] != nil }
+        if alreadyConnected { return }
+
+        let parameters: NWParameters
+        if let tlsOptions {
+            parameters = NWParameters(tls: tlsOptions)
+        } else if allowInsecure {
+            parameters = NWParameters.tcp
+        } else {
+            parameters = NWParameters(tls: NWProtocolTLS.Options())
+        }
+        parameters.includePeerToPeer = true
+
+        let connection = NWConnection(to: endpoint, using: parameters)
+
+        let resumed = OSAllocatedUnfairLock(initialState: false)
+
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            connection.stateUpdateHandler = { [weak self] newState in
+                guard let self else { return }
+                switch newState {
+                case .ready:
+                    self.state.withLock { s in
+                        s.connections[deviceId] = connection
+                        s.connectionTimestamps[deviceId] = Date()
+                        s.connectionState = .connected
+                    }
+                    self.receiveLoop(on: connection, deviceId: deviceId)
+                    self.delegate?.transport(self, didConnect: deviceId)
+                    let alreadyResumed = resumed.withLock { r in
+                        let was = r; r = true; return was
+                    }
+                    if !alreadyResumed { continuation.resume() }
+                case .failed:
+                    connection.cancel()
+                    let alreadyResumed = resumed.withLock { r in
+                        let was = r; r = true; return was
+                    }
+                    if !alreadyResumed {
+                        continuation.resume(throwing: FaceBridgeError.transportUnavailable)
+                    }
+                case .cancelled:
+                    let alreadyResumed = resumed.withLock { r in
+                        let was = r; r = true; return was
+                    }
+                    if !alreadyResumed {
+                        continuation.resume(throwing: FaceBridgeError.transportUnavailable)
+                    }
+                default:
+                    break
+                }
+            }
+            connection.start(queue: self.queue)
+        }
     }
 
     public func disconnect(from deviceId: UUID) async throws {
@@ -143,8 +199,14 @@ public final class LocalNetworkTransport: Transport, @unchecked Sendable {
 
     private func handleBrowseResults(_ results: Set<NWBrowser.Result>) {
         for result in results {
+            let existingId: UUID? = state.withLock { $0.endpointToDevice[result.endpoint] }
+            if existingId != nil { continue }
+
             let deviceId = UUID()
-            state.withLock { $0.endpointToDevice[result.endpoint] = deviceId }
+            state.withLock { s in
+                s.endpointToDevice[result.endpoint] = deviceId
+                s.deviceToEndpoint[deviceId] = result.endpoint
+            }
             let device = DiscoveredDevice(
                 id: deviceId,
                 displayName: result.endpoint.debugDescription,

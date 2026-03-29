@@ -14,9 +14,6 @@ let package = Package(
         .library(name: "FaceBridgeProtocol", targets: ["FaceBridgeProtocol"]),
         .library(name: "FaceBridgeTransport", targets: ["FaceBridgeTransport"]),
         .library(name: "FaceBridgeSharedUI", targets: ["FaceBridgeSharedUI"]),
-        .executable(name: "FaceBridgeiOSApp", targets: ["FaceBridgeiOSApp"]),
-        .executable(name: "FaceBridgeMacApp", targets: ["FaceBridgeMacApp"]),
-        .executable(name: "FaceBridgeMacAgent", targets: ["FaceBridgeMacAgent"]),
     ],
     targets: [
         // MARK: - Core
@@ -54,42 +51,17 @@ let package = Package(
             dependencies: ["FaceBridgeCore", "FaceBridgeProtocol"]
         ),
 
-        // MARK: - iOS App
+        // MARK: - macOS Agent (library for testability; Xcode project provides the executable)
 
-        .executableTarget(
-            name: "FaceBridgeiOSApp",
-            dependencies: [
-                "FaceBridgeCore",
-                "FaceBridgeCrypto",
-                "FaceBridgeProtocol",
-                "FaceBridgeTransport",
-                "FaceBridgeSharedUI",
-            ]
-        ),
-
-        // MARK: - macOS App
-
-        .executableTarget(
-            name: "FaceBridgeMacApp",
-            dependencies: [
-                "FaceBridgeCore",
-                "FaceBridgeCrypto",
-                "FaceBridgeProtocol",
-                "FaceBridgeTransport",
-                "FaceBridgeSharedUI",
-            ]
-        ),
-
-        // MARK: - macOS Agent
-
-        .executableTarget(
+        .target(
             name: "FaceBridgeMacAgent",
             dependencies: [
                 "FaceBridgeCore",
                 "FaceBridgeCrypto",
                 "FaceBridgeProtocol",
                 "FaceBridgeTransport",
-            ]
+            ],
+            exclude: ["main.swift"]
         ),
 
         // MARK: - Tests

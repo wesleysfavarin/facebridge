@@ -1,0 +1,710 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		168AFA715C32C6145D27664D /* FaceBridgeMacAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA79EFBB155F621DB0A6340E /* FaceBridgeMacAppMain.swift */; };
+		2C0AA7EB89EB946DBBC929E4 /* FaceBridgeSharedUI in Frameworks */ = {isa = PBXBuildFile; productRef = 2876AF9811CF3313702DED6E /* FaceBridgeSharedUI */; };
+		31C96D5A5237812662115D6E /* FaceBridgeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7C721D6B6CEAA7E4DE728C99 /* FaceBridgeCore */; };
+		4A08E87ABFD3224497065C52 /* BiometricAuthenticator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ED1923BB385A7F9D56892B6 /* BiometricAuthenticator.swift */; };
+		4A301D9668D3A55D0755CCA4 /* FaceBridgeCore in Frameworks */ = {isa = PBXBuildFile; productRef = B0404F97E4DC7648FB4BB0DE /* FaceBridgeCore */; };
+		5032792E2C84D9C86ECDAE30 /* FaceBridgeCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = 2CAAB82BCAABB41CF6B33ADD /* FaceBridgeCrypto */; };
+		5B050A36DC6954E633AED6A2 /* TrustedDeviceVerifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C9D03134A39295278507C24 /* TrustedDeviceVerifier.swift */; };
+		5E94BA0E3C6AD47E4EA3A3C4 /* FaceBridgeTransport in Frameworks */ = {isa = PBXBuildFile; productRef = A05479D831CC71C5D8D91AE9 /* FaceBridgeTransport */; };
+		729C07BC84A7557A56DBF6F2 /* FaceBridgeProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = B191A965EC49B476DF00321A /* FaceBridgeProtocol */; };
+		86C4B6DD538D80B38875A58C /* FaceBridgeTransport in Frameworks */ = {isa = PBXBuildFile; productRef = 8347A105C022144691FE7B12 /* FaceBridgeTransport */; };
+		87E74AB35589DD9E487980A1 /* FaceBridgeTransport in Frameworks */ = {isa = PBXBuildFile; productRef = BA93C70D52B78AD0B93C6A9B /* FaceBridgeTransport */; };
+		89EE5A6335C8535651DCEE7C /* AuthorizationExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = D449A50444CB14CFBA943D5B /* AuthorizationExecutor.swift */; };
+		91D64187833E7087B9E38BB4 /* SecureSessionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 423C9E79842644CBFD794E95 /* SecureSessionHandler.swift */; };
+		9AB4CA0A328A21A3E183443E /* AuthorizationRequester.swift in Sources */ = {isa = PBXBuildFile; fileRef = BFBB5AE6821D9774BB919B76 /* AuthorizationRequester.swift */; };
+		9B4F697DEB964571828A41C8 /* FaceBridgeSharedUI in Frameworks */ = {isa = PBXBuildFile; productRef = B166AC46D569111175A25531 /* FaceBridgeSharedUI */; };
+		9E000BBB848E8A330F35D56E /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 983C492BDCD1D7B92D050163 /* main.swift */; };
+		A456BE6F532AE2024F49469E /* DeviceTrustManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 528CB347791992D9B975B7AB /* DeviceTrustManager.swift */; };
+		AF18A049E0486EE4D1FC216E /* iOSCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96AEA190C06C34A263683040 /* iOSCoordinator.swift */; };
+		B44F8473BE82F3B389982741 /* FaceBridgeCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = AACAB22EB4D752718AC6DE06 /* FaceBridgeCrypto */; };
+		C3E70738E55349865E94C204 /* BackgroundListener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0515414FB81389C84B1ACD6E /* BackgroundListener.swift */; };
+		C593F7E18505345E1C6A02F9 /* FaceBridgeProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = 3A93A83BFAD50768CB62329D /* FaceBridgeProtocol */; };
+		C94ABB69F5D85F849E091FA9 /* FaceBridgeCrypto in Frameworks */ = {isa = PBXBuildFile; productRef = AD3E82BB36F3285080A17D46 /* FaceBridgeCrypto */; };
+		C9E0909C27EE003548CAB922 /* FaceBridgeProtocol in Frameworks */ = {isa = PBXBuildFile; productRef = 8660CE9275E1E97ABA49C351 /* FaceBridgeProtocol */; };
+		CF022785A135EABE7343F7E6 /* PolicyEnforcer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C7616CEA72FCBA5EEA97BCD /* PolicyEnforcer.swift */; };
+		DB46A95E087A3A5B9D81F78A /* AuthorizationResponder.swift in Sources */ = {isa = PBXBuildFile; fileRef = E703E131A2EE6C076009A527 /* AuthorizationResponder.swift */; };
+		DB6B2D77793C77DF92358186 /* MenuBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E0E26FD923177F36F9F8B48 /* MenuBarController.swift */; };
+		E290BBD29E1479336A771966 /* FaceBridgeiOSAppMain.swift in Sources */ = {isa = PBXBuildFile; fileRef = E80E7501C7FE95BC854C952C /* FaceBridgeiOSAppMain.swift */; };
+		EB856D903EE3AB3080F11166 /* MacCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B4E8ED1182BC3EA81FEB6D0D /* MacCoordinator.swift */; };
+		ECFB453D27660A3EDDF5220A /* MacAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BE708D73FAD7C9E0F89D50E /* MacAppViews.swift */; };
+		F2897402166F4079C5407E47 /* FaceBridgeCore in Frameworks */ = {isa = PBXBuildFile; productRef = 28173FD6B7405EA42F345127 /* FaceBridgeCore */; };
+		F815AF3914074BAC5B82CD86 /* PairedDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B29DE1C672C445DDC460ADB /* PairedDeviceManager.swift */; };
+		F88AA94C44515D4958A0DEAF /* iOSAppViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0CBBB1CC32819AC2C01E8A88 /* iOSAppViews.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		0515414FB81389C84B1ACD6E /* BackgroundListener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BackgroundListener.swift; sourceTree = "<group>"; };
+		0BE708D73FAD7C9E0F89D50E /* MacAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAppViews.swift; sourceTree = "<group>"; };
+		0CBBB1CC32819AC2C01E8A88 /* iOSAppViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSAppViews.swift; sourceTree = "<group>"; };
+		0ED1923BB385A7F9D56892B6 /* BiometricAuthenticator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BiometricAuthenticator.swift; sourceTree = "<group>"; };
+		353CDE4555824AEC7EE4F6C9 /* FaceBridge.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FaceBridge.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		423C9E79842644CBFD794E95 /* SecureSessionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SecureSessionHandler.swift; sourceTree = "<group>"; };
+		4C7616CEA72FCBA5EEA97BCD /* PolicyEnforcer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PolicyEnforcer.swift; sourceTree = "<group>"; };
+		528CB347791992D9B975B7AB /* DeviceTrustManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceTrustManager.swift; sourceTree = "<group>"; };
+		5E0E26FD923177F36F9F8B48 /* MenuBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarController.swift; sourceTree = "<group>"; };
+		6C9D03134A39295278507C24 /* TrustedDeviceVerifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TrustedDeviceVerifier.swift; sourceTree = "<group>"; };
+		70F81133EAB8FC931CA8A661 /* facebridge */ = {isa = PBXFileReference; lastKnownFileType = folder; name = facebridge; path = .; sourceTree = SOURCE_ROOT; };
+		7B29DE1C672C445DDC460ADB /* PairedDeviceManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PairedDeviceManager.swift; sourceTree = "<group>"; };
+		9430BFE0CBDBB8B73FC7813B /* FaceBridgeAgent */ = {isa = PBXFileReference; explicitFileType = "compiled.mach-o.executable"; includeInIndex = 0; path = FaceBridgeAgent; sourceTree = BUILT_PRODUCTS_DIR; };
+		96AEA190C06C34A263683040 /* iOSCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = iOSCoordinator.swift; sourceTree = "<group>"; };
+		983C492BDCD1D7B92D050163 /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		B4E8ED1182BC3EA81FEB6D0D /* MacCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCoordinator.swift; sourceTree = "<group>"; };
+		BFBB5AE6821D9774BB919B76 /* AuthorizationRequester.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationRequester.swift; sourceTree = "<group>"; };
+		CA79EFBB155F621DB0A6340E /* FaceBridgeMacAppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceBridgeMacAppMain.swift; sourceTree = "<group>"; };
+		D449A50444CB14CFBA943D5B /* AuthorizationExecutor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationExecutor.swift; sourceTree = "<group>"; };
+		E2FE7843972E2712A89AF78F /* FaceBridge Mac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "FaceBridge Mac.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		E703E131A2EE6C076009A527 /* AuthorizationResponder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthorizationResponder.swift; sourceTree = "<group>"; };
+		E80E7501C7FE95BC854C952C /* FaceBridgeiOSAppMain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FaceBridgeiOSAppMain.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		3433B4A83C6D688DB83ACEFA /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F2897402166F4079C5407E47 /* FaceBridgeCore in Frameworks */,
+				5032792E2C84D9C86ECDAE30 /* FaceBridgeCrypto in Frameworks */,
+				729C07BC84A7557A56DBF6F2 /* FaceBridgeProtocol in Frameworks */,
+				86C4B6DD538D80B38875A58C /* FaceBridgeTransport in Frameworks */,
+				2C0AA7EB89EB946DBBC929E4 /* FaceBridgeSharedUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		DA528C549573B5CBAA6857CD /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				4A301D9668D3A55D0755CCA4 /* FaceBridgeCore in Frameworks */,
+				B44F8473BE82F3B389982741 /* FaceBridgeCrypto in Frameworks */,
+				C9E0909C27EE003548CAB922 /* FaceBridgeProtocol in Frameworks */,
+				5E94BA0E3C6AD47E4EA3A3C4 /* FaceBridgeTransport in Frameworks */,
+				9B4F697DEB964571828A41C8 /* FaceBridgeSharedUI in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F87C5F48627595A959D136A0 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				31C96D5A5237812662115D6E /* FaceBridgeCore in Frameworks */,
+				C94ABB69F5D85F849E091FA9 /* FaceBridgeCrypto in Frameworks */,
+				C593F7E18505345E1C6A02F9 /* FaceBridgeProtocol in Frameworks */,
+				87E74AB35589DD9E487980A1 /* FaceBridgeTransport in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		03E70A513B41016D55FB5548 /* FaceBridgeMacApp */ = {
+			isa = PBXGroup;
+			children = (
+				BFBB5AE6821D9774BB919B76 /* AuthorizationRequester.swift */,
+				CA79EFBB155F621DB0A6340E /* FaceBridgeMacAppMain.swift */,
+				0BE708D73FAD7C9E0F89D50E /* MacAppViews.swift */,
+				B4E8ED1182BC3EA81FEB6D0D /* MacCoordinator.swift */,
+				5E0E26FD923177F36F9F8B48 /* MenuBarController.swift */,
+				7B29DE1C672C445DDC460ADB /* PairedDeviceManager.swift */,
+			);
+			name = FaceBridgeMacApp;
+			path = Sources/FaceBridgeMacApp;
+			sourceTree = "<group>";
+		};
+		5B12BD04656A4511D6AE9C62 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				9430BFE0CBDBB8B73FC7813B /* FaceBridgeAgent */,
+				353CDE4555824AEC7EE4F6C9 /* FaceBridge.app */,
+				E2FE7843972E2712A89AF78F /* FaceBridge Mac.app */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		96D7FA5E8AE99470485F4418 /* FaceBridgeMacAgent */ = {
+			isa = PBXGroup;
+			children = (
+				D449A50444CB14CFBA943D5B /* AuthorizationExecutor.swift */,
+				0515414FB81389C84B1ACD6E /* BackgroundListener.swift */,
+				983C492BDCD1D7B92D050163 /* main.swift */,
+				4C7616CEA72FCBA5EEA97BCD /* PolicyEnforcer.swift */,
+				423C9E79842644CBFD794E95 /* SecureSessionHandler.swift */,
+				6C9D03134A39295278507C24 /* TrustedDeviceVerifier.swift */,
+			);
+			name = FaceBridgeMacAgent;
+			path = Sources/FaceBridgeMacAgent;
+			sourceTree = "<group>";
+		};
+		9E8B6A5F09157DCD030FD4D3 = {
+			isa = PBXGroup;
+			children = (
+				D79DD9BB73067F73CB03182B /* FaceBridgeiOSApp */,
+				96D7FA5E8AE99470485F4418 /* FaceBridgeMacAgent */,
+				03E70A513B41016D55FB5548 /* FaceBridgeMacApp */,
+				D0588CB877AAACCDC778F2CF /* Packages */,
+				5B12BD04656A4511D6AE9C62 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		D0588CB877AAACCDC778F2CF /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				70F81133EAB8FC931CA8A661 /* facebridge */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
+		D79DD9BB73067F73CB03182B /* FaceBridgeiOSApp */ = {
+			isa = PBXGroup;
+			children = (
+				E703E131A2EE6C076009A527 /* AuthorizationResponder.swift */,
+				0ED1923BB385A7F9D56892B6 /* BiometricAuthenticator.swift */,
+				528CB347791992D9B975B7AB /* DeviceTrustManager.swift */,
+				E80E7501C7FE95BC854C952C /* FaceBridgeiOSAppMain.swift */,
+				0CBBB1CC32819AC2C01E8A88 /* iOSAppViews.swift */,
+				96AEA190C06C34A263683040 /* iOSCoordinator.swift */,
+			);
+			name = FaceBridgeiOSApp;
+			path = Sources/FaceBridgeiOSApp;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		06B7A64207579FEBD2C442E8 /* FaceBridgeiOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = AF533047FE1A7E7D25B815EF /* Build configuration list for PBXNativeTarget "FaceBridgeiOS" */;
+			buildPhases = (
+				E3C96FC342B883D709B589D4 /* Sources */,
+				3433B4A83C6D688DB83ACEFA /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FaceBridgeiOS;
+			packageProductDependencies = (
+				28173FD6B7405EA42F345127 /* FaceBridgeCore */,
+				2CAAB82BCAABB41CF6B33ADD /* FaceBridgeCrypto */,
+				B191A965EC49B476DF00321A /* FaceBridgeProtocol */,
+				8347A105C022144691FE7B12 /* FaceBridgeTransport */,
+				2876AF9811CF3313702DED6E /* FaceBridgeSharedUI */,
+			);
+			productName = FaceBridgeiOS;
+			productReference = 353CDE4555824AEC7EE4F6C9 /* FaceBridge.app */;
+			productType = "com.apple.product-type.application";
+		};
+		07AB5E3133C2AFED3BFE3060 /* FaceBridgeAgent */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 45A4922F848ECED424955119 /* Build configuration list for PBXNativeTarget "FaceBridgeAgent" */;
+			buildPhases = (
+				1D38F0281A33C48F89922365 /* Sources */,
+				F87C5F48627595A959D136A0 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FaceBridgeAgent;
+			packageProductDependencies = (
+				7C721D6B6CEAA7E4DE728C99 /* FaceBridgeCore */,
+				AD3E82BB36F3285080A17D46 /* FaceBridgeCrypto */,
+				3A93A83BFAD50768CB62329D /* FaceBridgeProtocol */,
+				BA93C70D52B78AD0B93C6A9B /* FaceBridgeTransport */,
+			);
+			productName = FaceBridgeAgent;
+			productReference = 9430BFE0CBDBB8B73FC7813B /* FaceBridgeAgent */;
+			productType = "com.apple.product-type.tool";
+		};
+		81CDDADF88EB192BBBA9B6E8 /* FaceBridgeMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = A02AFE2F850904681539DDDA /* Build configuration list for PBXNativeTarget "FaceBridgeMac" */;
+			buildPhases = (
+				62261DFD2657540143C1BE6F /* Sources */,
+				DA528C549573B5CBAA6857CD /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = FaceBridgeMac;
+			packageProductDependencies = (
+				B0404F97E4DC7648FB4BB0DE /* FaceBridgeCore */,
+				AACAB22EB4D752718AC6DE06 /* FaceBridgeCrypto */,
+				8660CE9275E1E97ABA49C351 /* FaceBridgeProtocol */,
+				A05479D831CC71C5D8D91AE9 /* FaceBridgeTransport */,
+				B166AC46D569111175A25531 /* FaceBridgeSharedUI */,
+			);
+			productName = FaceBridgeMac;
+			productReference = E2FE7843972E2712A89AF78F /* FaceBridge Mac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		8B043F0F194F89A12B5E91CD /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					06B7A64207579FEBD2C442E8 = {
+						ProvisioningStyle = Automatic;
+					};
+					07AB5E3133C2AFED3BFE3060 = {
+						ProvisioningStyle = Automatic;
+					};
+					81CDDADF88EB192BBBA9B6E8 = {
+						ProvisioningStyle = Automatic;
+					};
+				};
+			};
+			buildConfigurationList = F77FCA50696F952C1443DFBE /* Build configuration list for PBXProject "FaceBridge" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 9E8B6A5F09157DCD030FD4D3;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				795AE486708F436A209ABBB1 /* XCLocalSwiftPackageReference "." */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 5B12BD04656A4511D6AE9C62 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				07AB5E3133C2AFED3BFE3060 /* FaceBridgeAgent */,
+				81CDDADF88EB192BBBA9B6E8 /* FaceBridgeMac */,
+				06B7A64207579FEBD2C442E8 /* FaceBridgeiOS */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1D38F0281A33C48F89922365 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				89EE5A6335C8535651DCEE7C /* AuthorizationExecutor.swift in Sources */,
+				C3E70738E55349865E94C204 /* BackgroundListener.swift in Sources */,
+				CF022785A135EABE7343F7E6 /* PolicyEnforcer.swift in Sources */,
+				91D64187833E7087B9E38BB4 /* SecureSessionHandler.swift in Sources */,
+				5B050A36DC6954E633AED6A2 /* TrustedDeviceVerifier.swift in Sources */,
+				9E000BBB848E8A330F35D56E /* main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		62261DFD2657540143C1BE6F /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9AB4CA0A328A21A3E183443E /* AuthorizationRequester.swift in Sources */,
+				168AFA715C32C6145D27664D /* FaceBridgeMacAppMain.swift in Sources */,
+				ECFB453D27660A3EDDF5220A /* MacAppViews.swift in Sources */,
+				EB856D903EE3AB3080F11166 /* MacCoordinator.swift in Sources */,
+				DB6B2D77793C77DF92358186 /* MenuBarController.swift in Sources */,
+				F815AF3914074BAC5B82CD86 /* PairedDeviceManager.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E3C96FC342B883D709B589D4 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DB46A95E087A3A5B9D81F78A /* AuthorizationResponder.swift in Sources */,
+				4A08E87ABFD3224497065C52 /* BiometricAuthenticator.swift in Sources */,
+				A456BE6F532AE2024F49469E /* DeviceTrustManager.swift in Sources */,
+				E290BBD29E1479336A771966 /* FaceBridgeiOSAppMain.swift in Sources */,
+				F88AA94C44515D4958A0DEAF /* iOSAppViews.swift in Sources */,
+				AF18A049E0486EE4D1FC216E /* iOSCoordinator.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		26C10B9A696251800B5C8027 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		3DEA40E5230B15C7C2D78F2D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/macOSAgent/FaceBridgeAgent.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/macOSAgent/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.agent;
+				PRODUCT_NAME = FaceBridgeAgent;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		63797B458DA0946F1B477629 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/macOS/FaceBridgeMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/macOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.mac;
+				PRODUCT_NAME = "FaceBridge Mac";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		6464ED50AFC4B24EAD60B468 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/iOS/FaceBridgeiOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.ios;
+				PRODUCT_NAME = FaceBridge;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		68B74F100C8FCA4965710F4F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/macOS/FaceBridgeMac.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_HARDENED_RUNTIME = NO;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/macOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.mac;
+				PRODUCT_NAME = "FaceBridge Mac";
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Release;
+		};
+		74BA7D6B0CD09AEBB0D9CED1 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		C625751053045406CB9B2F7B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = App/macOSAgent/FaceBridgeAgent.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_HARDENED_RUNTIME = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/macOSAgent/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.agent;
+				PRODUCT_NAME = FaceBridgeAgent;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.9;
+			};
+			name = Debug;
+		};
+		CE6FA459D2DF7D8C579BA0BB /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = App/iOS/FaceBridgeiOS.entitlements;
+				CODE_SIGN_IDENTITY = "iPhone Developer";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = TMBBB4Z65G;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = App/iOS/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.facebridge.ios;
+				PRODUCT_NAME = FaceBridge;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 5.9;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		45A4922F848ECED424955119 /* Build configuration list for PBXNativeTarget "FaceBridgeAgent" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C625751053045406CB9B2F7B /* Debug */,
+				3DEA40E5230B15C7C2D78F2D /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		A02AFE2F850904681539DDDA /* Build configuration list for PBXNativeTarget "FaceBridgeMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				63797B458DA0946F1B477629 /* Debug */,
+				68B74F100C8FCA4965710F4F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		AF533047FE1A7E7D25B815EF /* Build configuration list for PBXNativeTarget "FaceBridgeiOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				6464ED50AFC4B24EAD60B468 /* Debug */,
+				CE6FA459D2DF7D8C579BA0BB /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F77FCA50696F952C1443DFBE /* Build configuration list for PBXProject "FaceBridge" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				26C10B9A696251800B5C8027 /* Debug */,
+				74BA7D6B0CD09AEBB0D9CED1 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		795AE486708F436A209ABBB1 /* XCLocalSwiftPackageReference "." */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = .;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		28173FD6B7405EA42F345127 /* FaceBridgeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCore;
+		};
+		2876AF9811CF3313702DED6E /* FaceBridgeSharedUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeSharedUI;
+		};
+		2CAAB82BCAABB41CF6B33ADD /* FaceBridgeCrypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCrypto;
+		};
+		3A93A83BFAD50768CB62329D /* FaceBridgeProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeProtocol;
+		};
+		7C721D6B6CEAA7E4DE728C99 /* FaceBridgeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCore;
+		};
+		8347A105C022144691FE7B12 /* FaceBridgeTransport */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeTransport;
+		};
+		8660CE9275E1E97ABA49C351 /* FaceBridgeProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeProtocol;
+		};
+		A05479D831CC71C5D8D91AE9 /* FaceBridgeTransport */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeTransport;
+		};
+		AACAB22EB4D752718AC6DE06 /* FaceBridgeCrypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCrypto;
+		};
+		AD3E82BB36F3285080A17D46 /* FaceBridgeCrypto */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCrypto;
+		};
+		B0404F97E4DC7648FB4BB0DE /* FaceBridgeCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeCore;
+		};
+		B166AC46D569111175A25531 /* FaceBridgeSharedUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeSharedUI;
+		};
+		B191A965EC49B476DF00321A /* FaceBridgeProtocol */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeProtocol;
+		};
+		BA93C70D52B78AD0B93C6A9B /* FaceBridgeTransport */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FaceBridgeTransport;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 8B043F0F194F89A12B5E91CD /* Project object */;
+}
