@@ -281,7 +281,10 @@ struct PairingMessageTests {
             peerDeviceId: UUID(),
             confirmed: true,
             sas: "123456",
-            signature: Data(repeating: 0x01, count: 64)
+            signature: Data(repeating: 0x01, count: 64),
+            displayName: "Test Mac",
+            platform: .macOS,
+            publicKeyData: Data([0x04] + Array(repeating: UInt8(0xAA), count: 64))
         )
         #expect(!confirmation.signable.isEmpty)
         #expect(confirmation.sas == "123456")

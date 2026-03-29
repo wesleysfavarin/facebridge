@@ -83,6 +83,9 @@ public struct PairingConfirmation: Codable, Sendable {
     public let confirmed: Bool
     public let sas: String
     public let signature: Data
+    public let displayName: String
+    public let platform: DevicePlatform
+    public let publicKeyData: Data
     public let createdAt: Date
 
     public init(
@@ -91,6 +94,9 @@ public struct PairingConfirmation: Codable, Sendable {
         confirmed: Bool,
         sas: String,
         signature: Data,
+        displayName: String,
+        platform: DevicePlatform,
+        publicKeyData: Data,
         createdAt: Date = Date()
     ) {
         self.deviceId = deviceId
@@ -98,6 +104,9 @@ public struct PairingConfirmation: Codable, Sendable {
         self.confirmed = confirmed
         self.sas = sas
         self.signature = signature
+        self.displayName = displayName
+        self.platform = platform
+        self.publicKeyData = publicKeyData
         self.createdAt = createdAt
     }
 
