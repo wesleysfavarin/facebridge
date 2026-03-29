@@ -2,6 +2,7 @@ import Foundation
 import SwiftUI
 import os
 import LocalAuthentication
+import UserNotifications
 import FaceBridgeCore
 import FaceBridgeCrypto
 import FaceBridgeProtocol
@@ -9,16 +10,53 @@ import FaceBridgeTransport
 
 @MainActor
 public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
+
+    // MARK: - Published State
+
     @Published public var discoveredDevices: [DiscoveredDevice] = []
     @Published public var trustedDevices: [DeviceIdentity] = []
+    @Published public var mergedNearbyDevices: [NearbyDevice] = []
+
+    @Published public var connectionStatus: ConnectionStatus = .searching
     @Published public var pairingState: PairingPhase = .idle
     @Published public var pendingAuthRequest: AuthorizationRequest?
     @Published public var pendingAuthDeviceId: UUID?
     @Published public var lastAuthResult: String = ""
+    @Published public var lastAuthTimestamp: Date?
     @Published public var logMessages: [LogEntry] = []
 
+    @Published public var hasCompletedOnboarding: Bool {
+        didSet { UserDefaults.standard.set(hasCompletedOnboarding, forKey: "fb_onboarding_done") }
+    }
+    @Published public var developerModeEnabled: Bool {
+        didSet { UserDefaults.standard.set(developerModeEnabled, forKey: "fb_developer_mode") }
+    }
+
+    // MARK: - Types
+
+    public enum ConnectionStatus: String {
+        case searching = "Searching…"
+        case deviceNearby = "Device nearby"
+        case paired = "Paired"
+        case connectedSecurely = "Connected securely"
+    }
+
     public enum PairingPhase: String {
-        case idle, enteringCode, sendingAcceptance, completed, failed
+        case idle, confirmingDevice, sendingAcceptance, completed, failed
+    }
+
+    public struct NearbyDevice: Identifiable, Hashable {
+        public let id: UUID
+        public let friendlyName: String
+        public let platform: DevicePlatform?
+        public let isTrusted: Bool
+        public let transportIds: Set<UUID>
+        public var isConnected: Bool
+
+        public static func == (lhs: NearbyDevice, rhs: NearbyDevice) -> Bool {
+            lhs.id == rhs.id
+        }
+        public func hash(into hasher: inout Hasher) { hasher.combine(id) }
     }
 
     public struct LogEntry: Identifiable {
@@ -27,6 +65,8 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         public let category: String
         public let message: String
     }
+
+    // MARK: - Private
 
     private let localDeviceId = UUID()
     private let keyTag = "com.facebridge.ios.device-key"
@@ -44,20 +84,22 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     public var localPublicKeyData: Data?
     private var deviceTransportMap: [UUID: any Transport] = [:]
 
+    // MARK: - Init
+
     public init() {
         let store = KeychainStore()
         let km = SoftwareKeyManager(store: store)
         self.keyManager = km
         let tm = DeviceTrustManager(keychainStore: store, auditLogger: AuditLogger())
         self.trustManager = tm
-        self.responder = AuthorizationResponder(
-            localDeviceId: UUID(),
-            keyManager: km,
-            trustManager: tm
-        )
+        self.responder = AuthorizationResponder(localDeviceId: UUID(), keyManager: km, trustManager: tm)
         self.lanTransport = LocalNetworkTransport(allowInsecure: true)
         self.bleTransport = BLETransport()
+        self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "fb_onboarding_done")
+        self.developerModeEnabled = UserDefaults.standard.bool(forKey: "fb_developer_mode")
     }
+
+    // MARK: - Lifecycle
 
     public func start() {
         log("lifecycle", "iOS coordinator starting")
@@ -74,68 +116,91 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         lanTransport.delegate = bridge
         bleTransport.delegate = bridge
 
-        Task {
-            await connectionManager.register(lanTransport)
-            await connectionManager.register(bleTransport)
-        }
+        Task { await connectionManager.register(lanTransport) }
+        Task { await connectionManager.register(bleTransport) }
 
         lanTransport.startDiscovery()
-        log("transport", "LAN discovery started")
-
-        do {
-            try lanTransport.startListening()
-            log("transport", "LAN listener started")
-        } catch {
-            log("transport", "LAN listener failed: \(error)")
-        }
-
+        do { try lanTransport.startListening() } catch { log("transport", "LAN listener failed: \(error)") }
         bleTransport.startDiscovery()
-        log("transport", "BLE discovery started")
-
-        bleTransport.startAdvertising(displayName: "FaceBridge-iPhone")
-        log("transport", "BLE advertising started")
+        bleTransport.startAdvertising(displayName: UIDevice.current.name)
 
         Task {
             try? await trustManager.loadTrustedDevices()
             let devices = await trustManager.allTrustedDevices()
             await MainActor.run { self.trustedDevices = devices }
             log("lifecycle", "Loaded \(devices.count) trusted device(s)")
+            if !devices.isEmpty { connectionStatus = .paired }
         }
 
-        log("lifecycle", "iOS coordinator ready — local device ID: \(localDeviceId)")
+        requestNotificationPermission()
+        log("lifecycle", "iOS coordinator ready")
+    }
+
+    // MARK: - Smart Pairing (no numeric code)
+
+    public func confirmPairing(with device: NearbyDevice) {
+        pairingState = .confirmingDevice
+        guard let transportId = device.transportIds.first else {
+            pairingState = .failed
+            log("pairing", "No transport ID for device")
+            return
+        }
+        pairingState = .sendingAcceptance
+        Task {
+            do {
+                guard let pubKey = localPublicKeyData else { throw FaceBridgeError.keyGenerationFailed }
+                log("pairing", "Connecting to \(device.friendlyName)…")
+                try await ensureConnected(to: transportId)
+
+                let signable = Data(localDeviceId.uuidString.utf8)
+                    + Data(UIDevice.current.name.utf8)
+                    + Data(DevicePlatform.iOS.rawValue.utf8)
+                    + pubKey
+                    + Data(transportId.uuidString.utf8)
+                let signature = try keyManager.sign(data: signable, keyTag: keyTag)
+
+                let acceptance = PairingAcceptance(
+                    deviceId: localDeviceId,
+                    displayName: UIDevice.current.name,
+                    platform: .iOS,
+                    publicKeyData: pubKey,
+                    invitationDeviceId: transportId,
+                    signature: signature
+                )
+                let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
+                try await sendToDevice(envelope, deviceId: transportId)
+
+                await MainActor.run {
+                    self.pairingState = .completed
+                    self.connectionStatus = .paired
+                }
+                log("pairing", "Paired with \(device.friendlyName)")
+            } catch {
+                await MainActor.run { self.pairingState = .failed }
+                log("pairing", "Pairing failed: \(error)")
+            }
+        }
     }
 
     public func submitPairingCode(_ code: String, toDeviceId deviceId: UUID) {
         pairingState = .sendingAcceptance
         Task {
             do {
-                guard let pubKey = localPublicKeyData else {
-                    throw FaceBridgeError.keyGenerationFailed
-                }
-
-                log("pairing", "Connecting to device \(deviceId)…")
+                guard let pubKey = localPublicKeyData else { throw FaceBridgeError.keyGenerationFailed }
                 try await ensureConnected(to: deviceId)
-
                 let signable = Data(localDeviceId.uuidString.utf8)
-                    + Data("FaceBridge-iPhone".utf8)
+                    + Data(UIDevice.current.name.utf8)
                     + Data(DevicePlatform.iOS.rawValue.utf8)
-                    + pubKey
-                    + Data(deviceId.uuidString.utf8)
+                    + pubKey + Data(deviceId.uuidString.utf8)
                 let signature = try keyManager.sign(data: signable, keyTag: keyTag)
-
                 let acceptance = PairingAcceptance(
-                    deviceId: localDeviceId,
-                    displayName: "FaceBridge-iPhone",
-                    platform: .iOS,
-                    publicKeyData: pubKey,
-                    invitationDeviceId: deviceId,
-                    signature: signature
+                    deviceId: localDeviceId, displayName: UIDevice.current.name,
+                    platform: .iOS, publicKeyData: pubKey,
+                    invitationDeviceId: deviceId, signature: signature
                 )
-
                 let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
-
-                await MainActor.run { self.pairingState = .completed }
+                await MainActor.run { self.pairingState = .completed; self.connectionStatus = .paired }
                 log("pairing", "Acceptance sent to \(deviceId)")
             } catch {
                 await MainActor.run { self.pairingState = .failed }
@@ -144,11 +209,148 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         }
     }
 
+    // MARK: - Authorization with Face ID
+
+    public func approveAuth() {
+        guard let request = pendingAuthRequest, let deviceId = pendingAuthDeviceId else { return }
+        Task {
+            do {
+                log("authorization", "Requesting Face ID…")
+                try await authenticateWithBiometrics(reason: request.reason)
+                log("authorization", "Face ID succeeded")
+
+                try await ensureConnected(to: deviceId)
+                let response = try await responder.respond(to: request, keyTag: keyTag)
+                let envelope = try encoder.encode(response, type: .authorizationResponse, sequenceNumber: 1)
+                try await sendToDevice(envelope, deviceId: deviceId)
+
+                await MainActor.run {
+                    self.lastAuthResult = "Approved"
+                    self.lastAuthTimestamp = Date()
+                    self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                }
+                log("authorization", "Response sent: \(response.decision.rawValue)")
+            } catch let error as LAError where error.code == .userCancel || error.code == .userFallback {
+                log("authorization", "Face ID cancelled")
+                await MainActor.run {
+                    self.lastAuthResult = "Cancelled"
+                    self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                }
+            } catch let error as LAError {
+                log("authorization", "Face ID failed: \(error.localizedDescription)")
+                await MainActor.run {
+                    self.lastAuthResult = "Face ID failed"
+                    self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                }
+            } catch {
+                log("authorization", "Failed: \(error)")
+                await MainActor.run {
+                    self.lastAuthResult = "Error: \(error.localizedDescription)"
+                    self.pendingAuthRequest = nil
+                }
+            }
+        }
+    }
+
+    public func denyAuth() {
+        pendingAuthRequest = nil
+        pendingAuthDeviceId = nil
+        lastAuthResult = "Denied"
+        log("authorization", "Denied by user")
+    }
+
+    private func authenticateWithBiometrics(reason: String) async throws {
+        let context = LAContext()
+        context.localizedFallbackTitle = ""
+        var error: NSError?
+        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
+            throw error ?? LAError(.biometryNotAvailable) as NSError
+        }
+        let sanitized = String(reason.prefix(200))
+        try await context.evaluatePolicy(
+            .deviceOwnerAuthenticationWithBiometrics,
+            localizedReason: sanitized.isEmpty ? "Authorize request from your Mac" : sanitized
+        )
+    }
+
+    // MARK: - Device Deduplication
+
+    public func rebuildMergedDevices() {
+        var merged: [String: NearbyDevice] = [:]
+
+        for device in discoveredDevices {
+            let key = friendlyName(for: device.displayName)
+            if var existing = merged[key] {
+                var ids = existing.transportIds
+                ids.insert(device.id)
+                existing = NearbyDevice(
+                    id: existing.id, friendlyName: existing.friendlyName,
+                    platform: existing.platform, isTrusted: existing.isTrusted,
+                    transportIds: ids, isConnected: existing.isConnected || deviceTransportMap[device.id] != nil
+                )
+                merged[key] = existing
+            } else {
+                let isTrusted = trustedDevices.contains { $0.displayName == key || friendlyName(for: $0.displayName) == key }
+                merged[key] = NearbyDevice(
+                    id: device.id, friendlyName: key,
+                    platform: isTrusted ? trustedDevices.first(where: { friendlyName(for: $0.displayName) == key })?.platform : nil,
+                    isTrusted: isTrusted, transportIds: [device.id],
+                    isConnected: deviceTransportMap[device.id] != nil
+                )
+            }
+        }
+
+        mergedNearbyDevices = Array(merged.values).sorted { ($0.isTrusted ? 0 : 1) < ($1.isTrusted ? 0 : 1) }
+        updateConnectionStatus()
+    }
+
+    private func friendlyName(for rawName: String) -> String {
+        var name = rawName
+        name = name.replacingOccurrences(of: "\\032", with: " ")
+        if let range = name.range(of: "._facebridge._tcp.local.") { name = String(name[..<range.lowerBound]) }
+        if let range = name.range(of: "._tcp.local.") { name = String(name[..<range.lowerBound]) }
+        if let range = name.range(of: ".local.") { name = String(name[..<range.lowerBound]) }
+        name = name.trimmingCharacters(in: .whitespaces)
+        return name.isEmpty ? "Unknown Device" : name
+    }
+
+    private func updateConnectionStatus() {
+        if mergedNearbyDevices.contains(where: { $0.isTrusted && $0.isConnected }) {
+            connectionStatus = .connectedSecurely
+        } else if !trustedDevices.isEmpty {
+            connectionStatus = mergedNearbyDevices.isEmpty ? .paired : .paired
+        } else if !mergedNearbyDevices.isEmpty {
+            connectionStatus = .deviceNearby
+        } else {
+            connectionStatus = .searching
+        }
+    }
+
+    // MARK: - Notifications
+
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+    }
+
+    private func sendLocalNotification(title: String, body: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
+    // MARK: - Transport Helpers
+
     private func ensureConnected(to deviceId: UUID) async throws {
         if deviceTransportMap[deviceId] != nil { return }
         try await lanTransport.connect(to: deviceId)
         deviceTransportMap[deviceId] = lanTransport
-        log("transport", "Outgoing connection established to \(deviceId)")
+        log("transport", "Connected to \(deviceId)")
     }
 
     private func sendToDevice(_ envelope: MessageEnvelope, deviceId: UUID) async throws {
@@ -159,163 +361,99 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         }
     }
 
-    public func approveAuth() {
-        guard let request = pendingAuthRequest, let deviceId = pendingAuthDeviceId else { return }
-        Task {
-            do {
-                log("authorization", "Requesting Face ID authentication…")
-                try await authenticateWithBiometrics(reason: request.reason)
-                log("authorization", "Face ID succeeded — signing response")
-
-                try await ensureConnected(to: deviceId)
-                let response = try await responder.respond(to: request, keyTag: keyTag)
-                let envelope = try encoder.encode(response, type: .authorizationResponse, sequenceNumber: 1)
-                try await sendToDevice(envelope, deviceId: deviceId)
-
-                await MainActor.run {
-                    self.lastAuthResult = "Approved (Face ID verified)"
-                    self.pendingAuthRequest = nil
-                    self.pendingAuthDeviceId = nil
-                }
-                log("authorization", "Response sent: \(response.decision.rawValue)")
-            } catch let error as LAError where error.code == .userCancel || error.code == .userFallback {
-                log("authorization", "Face ID cancelled by user")
-                await MainActor.run {
-                    self.lastAuthResult = "Cancelled — Face ID not completed"
-                    self.pendingAuthRequest = nil
-                    self.pendingAuthDeviceId = nil
-                }
-            } catch let error as LAError {
-                log("authorization", "Face ID failed: \(error.localizedDescription)")
-                await MainActor.run {
-                    self.lastAuthResult = "Face ID failed: \(error.localizedDescription)"
-                    self.pendingAuthRequest = nil
-                    self.pendingAuthDeviceId = nil
-                }
-            } catch {
-                log("authorization", "Failed to respond: \(error)")
-                await MainActor.run {
-                    self.lastAuthResult = "Error: \(error.localizedDescription)"
-                    self.pendingAuthRequest = nil
-                }
-            }
-        }
-    }
-
-    private func authenticateWithBiometrics(reason: String) async throws {
-        let context = LAContext()
-        context.localizedFallbackTitle = ""
-        var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            log("authorization", "Biometrics unavailable: \(error?.localizedDescription ?? "unknown")")
-            throw error ?? LAError(.biometryNotAvailable) as NSError
-        }
-        let sanitizedReason = String(reason.prefix(200))
-        try await context.evaluatePolicy(
-            .deviceOwnerAuthenticationWithBiometrics,
-            localizedReason: sanitizedReason.isEmpty ? "Authorize Mac request" : sanitizedReason
-        )
-    }
-
-    public func denyAuth() {
-        pendingAuthRequest = nil
-        pendingAuthDeviceId = nil
-        lastAuthResult = "Denied by user"
-        log("authorization", "Denied by user (no biometric)")
-    }
+    // MARK: - Transport Delegate Handlers
 
     func handleDiscovery(_ device: DiscoveredDevice) {
         Task { @MainActor in
             if !discoveredDevices.contains(where: { $0.id == device.id }) {
                 discoveredDevices.append(device)
+                rebuildMergedDevices()
             }
         }
-        log("transport", "Discovered: \(device.displayName) via \(device.transportType.rawValue)")
+        log("transport", "Discovered: \(device.displayName)")
     }
 
     func handleConnect(_ deviceId: UUID, transport: (any Transport)?) {
         log("transport", "Connected: \(deviceId)")
-        if let transport {
-            deviceTransportMap[deviceId] = transport
-        }
+        if let transport { deviceTransportMap[deviceId] = transport }
         bleTransport.authorizePeer(deviceId)
+        rebuildMergedDevices()
     }
 
     func handleDisconnect(_ deviceId: UUID) {
         log("transport", "Disconnected: \(deviceId)")
         deviceTransportMap.removeValue(forKey: deviceId)
+        rebuildMergedDevices()
     }
 
     func handleReceive(_ envelope: MessageEnvelope, from deviceId: UUID, transport: (any Transport)?) {
-        log("transport", "Received envelope type=\(envelope.type.rawValue) from \(deviceId)")
+        log("transport", "Received type=\(envelope.type.rawValue)")
         if let transport, deviceTransportMap[deviceId] == nil {
             deviceTransportMap[deviceId] = transport
         }
-
         switch envelope.type {
         case .authorizationRequest:
             handleIncomingAuthRequest(envelope, from: deviceId)
         case .pairingInvitation:
-            log("pairing", "Received pairing invitation from \(deviceId)")
+            log("pairing", "Invitation from \(deviceId)")
         default:
-            log("transport", "Unhandled envelope type: \(envelope.type.rawValue)")
+            log("transport", "Unhandled: \(envelope.type.rawValue)")
         }
     }
 
     func handleError(_ error: FaceBridgeError) {
-        log("transport", "Transport error: \(error.localizedDescription)")
+        log("transport", "Error: \(error.localizedDescription)")
     }
 
     private func handleIncomingAuthRequest(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
                 let request = try JSONDecoder().decode(AuthorizationRequest.self, from: envelope.payload)
-                log("authorization", "Auth request from \(request.senderDeviceId): \(request.reason)")
+                log("authorization", "Auth request: \(request.reason)")
+                sendLocalNotification(
+                    title: "Authorization Request",
+                    body: "Your Mac requests authorization"
+                )
                 await MainActor.run {
                     self.pendingAuthRequest = request
                     self.pendingAuthDeviceId = deviceId
                 }
             } catch {
-                log("authorization", "Failed to decode auth request: \(error)")
+                log("authorization", "Decode failed: \(error)")
             }
         }
     }
+
+    // MARK: - Logging
 
     func log(_ category: String, _ message: String) {
         let entry = LogEntry(category: category, message: message)
         DebugLogger.lifecycle.info("[\(category)] \(message)")
         Task { @MainActor in
             self.logMessages.append(entry)
-            if self.logMessages.count > 200 {
-                self.logMessages.removeFirst(50)
-            }
+            if self.logMessages.count > 200 { self.logMessages.removeFirst(50) }
         }
     }
 }
 
+// MARK: - Transport Bridge
+
 final class iOSTransportBridge: TransportDelegate, @unchecked Sendable {
     private weak var coordinator: iOSCoordinator?
-
-    init(coordinator: iOSCoordinator) {
-        self.coordinator = coordinator
-    }
+    init(coordinator: iOSCoordinator) { self.coordinator = coordinator }
 
     func transport(_ transport: any Transport, didDiscover device: DiscoveredDevice) {
         Task { @MainActor in coordinator?.handleDiscovery(device) }
     }
-
     func transport(_ transport: any Transport, didConnect deviceId: UUID) {
         Task { @MainActor in coordinator?.handleConnect(deviceId, transport: transport) }
     }
-
     func transport(_ transport: any Transport, didDisconnect deviceId: UUID) {
         Task { @MainActor in coordinator?.handleDisconnect(deviceId) }
     }
-
     func transport(_ transport: any Transport, didReceive envelope: MessageEnvelope, from deviceId: UUID) {
         Task { @MainActor in coordinator?.handleReceive(envelope, from: deviceId, transport: transport) }
     }
-
     func transport(_ transport: any Transport, didFailWithError error: FaceBridgeError) {
         Task { @MainActor in coordinator?.handleError(error) }
     }
