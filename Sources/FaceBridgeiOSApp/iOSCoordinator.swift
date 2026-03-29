@@ -42,7 +42,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     }
 
     public enum PairingPhase: String {
-        case idle, confirmingDevice, sendingAcceptance, completed, failed
+        case idle, confirmingDevice, sendingAcceptance, waitingConfirmation, completed, failed
     }
 
     public struct NearbyDevice: Identifiable, Hashable {
@@ -103,12 +103,16 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
 
     public func start() {
         log("lifecycle", "iOS coordinator starting")
-        do {
-            localPublicKeyData = try keyManager.generateKeyPair(tag: keyTag)
-            log("crypto", "Device key pair generated")
-        } catch {
-            log("crypto", "Key generation: using existing key")
-            localPublicKeyData = try? keyManager.publicKeyData(for: keyTag)
+        if let existingKey = try? keyManager.publicKeyData(for: keyTag) {
+            localPublicKeyData = existingKey
+            log("crypto", "Loaded existing device key (\(existingKey.count) bytes)")
+        } else {
+            do {
+                localPublicKeyData = try keyManager.generateKeyPair(tag: keyTag)
+                log("crypto", "Generated new device key pair")
+            } catch {
+                log("crypto", "Key generation failed: \(error)")
+            }
         }
 
         let bridge = iOSTransportBridge(coordinator: self)
@@ -170,7 +174,8 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                 )
                 let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: transportId)
-                log("pairing", "[stage_2] PairingAcceptance sent — waiting for PairingConfirmation from Mac…")
+                await MainActor.run { self.pairingState = .waitingConfirmation }
+                log("pairing", "[ios_pairing] waiting_confirmation — PairingAcceptance sent, awaiting PairingConfirmation from Mac…")
             } catch {
                 await MainActor.run { self.pairingState = .failed }
                 log("pairing", "[ERROR] Pairing failed: \(error)")
@@ -197,7 +202,8 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                 )
                 let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
-                log("pairing", "[stage_2] Acceptance sent — waiting for confirmation…")
+                await MainActor.run { self.pairingState = .waitingConfirmation }
+                log("pairing", "[ios_pairing] waiting_confirmation — Acceptance sent to \(deviceId)")
             } catch {
                 await MainActor.run { self.pairingState = .failed }
                 log("pairing", "[ERROR] Failed to send acceptance: \(error)")
@@ -414,25 +420,28 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     private func handlePairingConfirmation(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
-                let confirmation = try JSONDecoder().decode(PairingConfirmation.self, from: envelope.payload)
-                log("pairing", "[stage_3] Received PairingConfirmation from \(confirmation.displayName)")
+                log("pairing", "[ios_pairing] confirmation_received — decoding (\(envelope.payload.count) bytes)")
+                let confirmation = try encoder.decode(PairingConfirmation.self, from: envelope)
+                log("pairing", "[ios_pairing] From: \(confirmation.displayName) (\(confirmation.platform.rawValue)), confirmed=\(confirmation.confirmed), pubKey=\(confirmation.publicKeyData.count) bytes")
 
                 guard confirmation.confirmed else {
-                    log("pairing", "[stage_3] Mac rejected pairing")
+                    log("pairing", "[ios_pairing] Mac REJECTED pairing")
                     await MainActor.run { self.pairingState = .failed }
                     return
                 }
 
-                log("pairing", "[stage_4] Validating Mac public key…")
+                log("pairing", "[ios_pairing] Validating Mac public key (\(confirmation.publicKeyData.count) bytes)…")
                 let macIdentity = try DeviceIdentity(
                     id: confirmation.deviceId,
                     displayName: confirmation.displayName,
                     platform: confirmation.platform,
                     publicKeyData: confirmation.publicKeyData
                 )
-                log("pairing", "[stage_4] Mac identity valid — storing trust…")
 
+                log("pairing", "[trust] save_started — storing \(confirmation.displayName)")
                 try await trustManager.addTrustedDevice(macIdentity)
+                log("pairing", "[trust] save_success")
+
                 let devices = await trustManager.allTrustedDevices()
                 await MainActor.run {
                     self.trustedDevices = devices
@@ -440,9 +449,10 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                     self.connectionStatus = .connectedSecurely
                 }
                 rebuildMergedDevices()
-                log("pairing", "[stage_5] Pairing COMPLETE — \(confirmation.displayName) is now trusted (\(devices.count) total)")
+                log("pairing", "[trust] refresh_success — \(confirmation.displayName) is trusted (\(devices.count) total)")
+                log("pairing", "[ios_pairing] trust_persisted — PAIRING COMPLETE")
             } catch {
-                log("pairing", "[ERROR] Failed to process PairingConfirmation: \(error)")
+                log("pairing", "[ios_pairing] ERROR processing confirmation: \(error)")
                 await MainActor.run { self.pairingState = .failed }
             }
         }
@@ -451,7 +461,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     private func handleIncomingAuthRequest(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
-                let request = try JSONDecoder().decode(AuthorizationRequest.self, from: envelope.payload)
+                let request = try encoder.decode(AuthorizationRequest.self, from: envelope)
                 log("authorization", "Auth request: \(request.reason)")
                 sendLocalNotification(
                     title: "Authorization Request",

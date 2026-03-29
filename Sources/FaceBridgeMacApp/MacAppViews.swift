@@ -8,7 +8,7 @@ import FaceBridgeTransport
 
 public struct MacMainView: View {
     @EnvironmentObject var coordinator: MacCoordinator
-    @State private var selectedSection: MacSection = .dashboard
+    @State private var selectedSection: MacSection? = .dashboard
 
     public init() {}
 
@@ -19,7 +19,7 @@ public struct MacMainView: View {
             }
             .navigationTitle("FaceBridge")
         } detail: {
-            switch selectedSection {
+            switch selectedSection ?? .dashboard {
             case .dashboard:
                 MacDashboardView()
             case .devices:

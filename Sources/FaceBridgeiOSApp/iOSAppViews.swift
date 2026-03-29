@@ -393,6 +393,24 @@ struct PairingSheet: View {
                     .listStyle(.insetGrouped)
                 }
 
+                if coordinator.pairingState == .sendingAcceptance || coordinator.pairingState == .waitingConfirmation {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .scaleEffect(1.2)
+                        Text(coordinator.pairingState == .sendingAcceptance ? "Connecting…" : "Waiting for Mac to confirm…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding()
+                }
+
+                if coordinator.pairingState == .completed {
+                    Label("Paired successfully!", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                        .font(.headline)
+                        .padding()
+                }
+
                 if coordinator.pairingState == .failed {
                     Label("Pairing failed. Try again.", systemImage: "exclamationmark.triangle")
                         .foregroundStyle(.red)
