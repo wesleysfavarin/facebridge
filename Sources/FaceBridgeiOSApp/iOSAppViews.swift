@@ -172,28 +172,29 @@ struct iOSDashboardView: View {
                         }
                     }
 
-                    if let timestamp = coordinator.lastAuthTimestamp {
+                    if !coordinator.lastAuthResult.isEmpty {
                         GroupBox {
-                            HStack {
-                                Image(systemName: "clock")
-                                    .foregroundStyle(.secondary)
+                            HStack(spacing: 12) {
+                                Image(systemName: coordinator.lastAuthResult == "Approved" ? "checkmark.shield.fill" : "xmark.shield.fill")
+                                    .font(.title3)
+                                    .foregroundStyle(coordinator.lastAuthResult == "Approved" ? .green : .orange)
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Last Authorization")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
-                                    Text(timestamp, style: .relative)
-                                        .font(.body)
-                                    + Text(" ago")
-                                        .font(.body)
+                                    Text(coordinator.lastAuthResult)
+                                        .font(.headline)
+                                        .foregroundStyle(coordinator.lastAuthResult == "Approved" ? .green : .orange)
                                 }
                                 Spacer()
-                                Text(coordinator.lastAuthResult)
-                                    .font(.caption)
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(coordinator.lastAuthResult == "Approved" ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
-                                    .foregroundStyle(coordinator.lastAuthResult == "Approved" ? .green : .orange)
-                                    .clipShape(Capsule())
+                                if let t = coordinator.lastAuthTimestamp {
+                                    Text(t, style: .relative)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    + Text(" ago")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
                             }
                             .padding(4)
                         }
@@ -436,48 +437,57 @@ struct FaceIDAuthSheet: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Image(systemName: "faceid")
-                .font(.system(size: 64))
-                .foregroundStyle(.blue)
-                .symbolEffect(.pulse, isActive: !authTriggered)
+            if coordinator.authProcessing {
+                ProgressView()
+                    .scaleEffect(1.5)
+                    .padding()
+                Text("Verifying with Face ID…")
+                    .font(.headline)
+                    .foregroundStyle(.blue)
+            } else {
+                Image(systemName: "faceid")
+                    .font(.system(size: 64))
+                    .foregroundStyle(.blue)
+                    .symbolEffect(.pulse, isActive: !authTriggered)
 
-            Text("Authorization Request")
-                .font(.title2)
-                .fontWeight(.semibold)
+                Text("Authorization Request")
+                    .font(.title2)
+                    .fontWeight(.semibold)
 
-            Text("Authorize request from your Mac")
-                .font(.body)
-                .foregroundStyle(.secondary)
-
-            if let request = coordinator.pendingAuthRequest {
-                Text(String(request.reason.prefix(200)))
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal)
-            }
-
-            HStack(spacing: 16) {
-                Button {
-                    coordinator.denyAuth()
-                } label: {
-                    Text("Deny")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                if let request = coordinator.pendingAuthRequest {
+                    Text(String(request.reason.prefix(200)))
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                } else {
+                    Text("Authorize request from your Mac")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 }
-                .buttonStyle(.bordered)
-                .tint(.red)
 
-                Button {
-                    coordinator.approveAuth()
-                } label: {
-                    Label("Authorize", systemImage: "faceid")
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
+                HStack(spacing: 16) {
+                    Button {
+                        coordinator.denyAuth()
+                    } label: {
+                        Text("Deny")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.red)
+
+                    Button {
+                        coordinator.approveAuth()
+                    } label: {
+                        Label("Authorize", systemImage: "faceid")
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
                 }
-                .buttonStyle(.borderedProminent)
+                .padding(.horizontal, 24)
             }
-            .padding(.horizontal, 24)
         }
         .padding(24)
         .onAppear {

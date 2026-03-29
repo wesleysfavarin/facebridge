@@ -25,6 +25,19 @@ struct FaceBridgeMacAppMain: App {
                 }
                 Divider()
 
+                if coordinator.isVaultUnlocked {
+                    HStack {
+                        Image(systemName: "lock.open.fill")
+                            .foregroundStyle(.green)
+                        Text("Vault Unlocked")
+                            .foregroundStyle(.green)
+                    }
+                    Button("Lock Vault") {
+                        coordinator.lockVault()
+                    }
+                    Divider()
+                }
+
                 if !coordinator.pairedDevices.isEmpty {
                     Text("Trusted Devices")
                         .font(.caption)
@@ -37,15 +50,32 @@ struct FaceBridgeMacAppMain: App {
                     }
                     Divider()
 
-                    Button("Send Auth Request") {
-                        coordinator.sendAuthToFirstPairedDevice(reason: "Unlock Mac")
+                    Button("Request Face ID Authorization") {
+                        coordinator.requestAuthorization(reason: "Authorize action from menu bar")
+                    }
+
+                    Button("Unlock Secure Vault") {
+                        coordinator.requestVaultUnlock()
+                    }
+
+                    if coordinator.authPhase == .waitingForApproval {
+                        HStack {
+                            ProgressView().controlSize(.mini)
+                            Text("Waiting for iPhone…")
+                                .font(.caption)
+                                .foregroundStyle(.blue)
+                        }
                     }
                 }
 
                 if !coordinator.lastAuthResult.isEmpty {
-                    Text("Last: \(coordinator.lastAuthResult)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Divider()
+                    HStack {
+                        Image(systemName: coordinator.lastAuthResult == "Approved" ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(coordinator.lastAuthResult == "Approved" ? .green : .red)
+                        Text("Last: \(coordinator.lastAuthResult)")
+                            .font(.caption)
+                    }
                 }
 
                 Divider()
@@ -68,6 +98,7 @@ struct FaceBridgeMacAppMain: App {
     }
 
     private var menuBarIcon: String {
+        if coordinator.isVaultUnlocked { return "lock.open.fill" }
         switch coordinator.connectionStatus {
         case .searching: return "faceid"
         case .deviceNearby: return "faceid"

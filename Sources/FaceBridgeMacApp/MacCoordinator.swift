@@ -22,6 +22,10 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     @Published public var lastAuthTimestamp: Date?
     @Published public var logMessages: [LogEntry] = []
 
+    @Published public var authPhase: AuthorizationPhase = .idle
+    @Published public var isVaultUnlocked: Bool = false
+    @Published public var vaultUnlockedAt: Date?
+
     @Published public var developerModeEnabled: Bool {
         didSet { UserDefaults.standard.set(developerModeEnabled, forKey: "fb_mac_developer_mode") }
     }
@@ -37,6 +41,16 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
 
     public enum PairingPhase: String {
         case idle, generatingCode, waitingForAcceptance, verifyingSAS, completed, failed
+    }
+
+    public enum AuthorizationPhase: String {
+        case idle
+        case sending = "Sending request…"
+        case waitingForApproval = "Waiting for iPhone…"
+        case approved = "Approved"
+        case denied = "Denied"
+        case expired = "Expired"
+        case failed = "Failed"
     }
 
     public struct NearbyDevice: Identifiable, Hashable {
@@ -60,7 +74,7 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
 
     // MARK: - Private
 
-    private let localDeviceId = UUID()
+    private let localDeviceId: UUID
     private let keyTag = "com.facebridge.mac.device-key"
 
     private let lanTransport: LocalNetworkTransport
@@ -81,6 +95,7 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     // MARK: - Init
 
     public init() {
+        self.localDeviceId = Self.loadOrCreateDeviceId(key: "fb_mac_device_id")
         let store = KeychainStore()
         self.keyManager = SoftwareKeyManager(store: store)
         self.deviceManager = PairedDeviceManager(keychainStore: store, auditLogger: AuditLogger())
@@ -90,10 +105,20 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
         self.developerModeEnabled = UserDefaults.standard.bool(forKey: "fb_mac_developer_mode")
     }
 
-    // MARK: - Lifecycle (Phase 1: Auto-start everything)
+    private static func loadOrCreateDeviceId(key: String) -> UUID {
+        if let string = UserDefaults.standard.string(forKey: key),
+           let id = UUID(uuidString: string) {
+            return id
+        }
+        let id = UUID()
+        UserDefaults.standard.set(id.uuidString, forKey: key)
+        return id
+    }
+
+    // MARK: - Lifecycle
 
     public func start() {
-        log("lifecycle", "Mac coordinator starting — all components auto-starting")
+        log("lifecycle", "Mac coordinator starting (deviceId=\(localDeviceId.uuidString.prefix(8)))")
 
         if let existingKey = try? keyManager.publicKeyData(for: keyTag) {
             localPublicKeyData = existingKey
@@ -154,9 +179,38 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
 
     // MARK: - Authorization
 
+    public func requestAuthorization(reason: String) {
+        guard let device = mergedNearbyDevices.first(where: { $0.isTrusted }),
+              let transportId = device.transportIds.first else {
+            if pairedDevices.isEmpty {
+                log("authorization", "No paired devices — pair your iPhone first")
+                lastAuthResult = "No paired device"
+            } else {
+                log("authorization", "Paired device not nearby")
+                lastAuthResult = "Device not nearby"
+            }
+            authPhase = .failed
+            return
+        }
+        sendAuthorizationRequest(to: transportId, reason: reason)
+    }
+
+    public func requestVaultUnlock() {
+        isVaultUnlocked = false
+        requestAuthorization(reason: "Unlock Secure Vault on your Mac")
+    }
+
+    public func lockVault() {
+        isVaultUnlocked = false
+        vaultUnlockedAt = nil
+        log("vault", "Vault locked")
+    }
+
     public func sendAuthorizationRequest(to deviceId: UUID, reason: String) {
+        authPhase = .sending
         Task {
             do {
+                log("authorization", "[auth_req] Creating request (reason: \(reason))")
                 try await ensureConnected(to: deviceId)
                 let request = try await requester.createRequest(
                     senderDeviceId: localDeviceId, keyTag: keyTag,
@@ -165,25 +219,26 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
                 let envelope = try encoder.encode(request, type: .authorizationRequest, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
                 pendingRequests[request.id] = request
-                log("authorization", "Request sent to \(deviceId)")
-                await MainActor.run { self.lastAuthResult = "Request sent…" }
+                log("authorization", "[auth_req] Request sent (id=\(request.id.uuidString.prefix(8)))")
+                await MainActor.run {
+                    self.authPhase = .waitingForApproval
+                    self.lastAuthResult = "Waiting for iPhone…"
+                }
             } catch {
-                log("authorization", "Send failed: \(error)")
-                await MainActor.run { self.lastAuthResult = "Send failed" }
+                log("authorization", "[auth_req] Send failed: \(error)")
+                await MainActor.run {
+                    self.authPhase = .failed
+                    self.lastAuthResult = "Send failed"
+                }
             }
         }
     }
 
     public func sendAuthToFirstPairedDevice(reason: String) {
-        guard let device = mergedNearbyDevices.first(where: { $0.isTrusted }),
-              let transportId = device.transportIds.first else {
-            log("authorization", "No paired device nearby")
-            return
-        }
-        sendAuthorizationRequest(to: transportId, reason: reason)
+        requestAuthorization(reason: reason)
     }
 
-    // MARK: - Device Deduplication (Phase 5)
+    // MARK: - Device Deduplication
 
     public func rebuildMergedDevices() {
         var merged: [String: NearbyDevice] = [:]
@@ -240,7 +295,7 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
         }
     }
 
-    private func hostName() -> String {
+    func hostName() -> String {
         #if os(macOS)
         return Host.current().localizedName ?? "Mac"
         #else
@@ -270,7 +325,6 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
         let localName = hostName().lowercased()
         let deviceFriendly = friendlyName(for: device.displayName).lowercased()
         if deviceFriendly == localName || device.displayName.lowercased().contains(localName.replacingOccurrences(of: " ", with: "\\032")) {
-            log("transport", "Filtered self-discovery: \(device.displayName)")
             return
         }
         Task { @MainActor in
@@ -285,29 +339,27 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     func handleConnect(_ deviceId: UUID, transport: (any Transport)?) {
         if let transport { deviceTransportMap[deviceId] = transport }
         rebuildMergedDevices()
-        log("transport", "[mac_conn] Connected: \(deviceId), transport=\(transport != nil ? "yes" : "nil"), totalMapped=\(deviceTransportMap.count)")
+        log("transport", "Connected: \(deviceId.uuidString.prefix(8))")
     }
 
     func handleDisconnect(_ deviceId: UUID) {
         deviceTransportMap.removeValue(forKey: deviceId)
         rebuildMergedDevices()
-        log("transport", "Disconnected: \(deviceId)")
+        log("transport", "Disconnected: \(deviceId.uuidString.prefix(8))")
     }
 
     func handleReceive(_ envelope: MessageEnvelope, from deviceId: UUID, transport: (any Transport)?) {
-        log("transport", "[mac_recv] type=\(envelope.type.rawValue) from=\(deviceId) payloadSize=\(envelope.payload.count)")
+        log("transport", "[recv] type=\(envelope.type.rawValue) from=\(deviceId.uuidString.prefix(8))")
         if let transport, deviceTransportMap[deviceId] == nil {
             deviceTransportMap[deviceId] = transport
-            log("transport", "[mac_recv] Stored transport for device \(deviceId)")
         }
         switch envelope.type {
         case .pairingAcceptance:
-            log("pairing", "[mac_pairing] received_acceptance from \(deviceId)")
             handlePairingAcceptance(envelope, from: deviceId)
         case .authorizationResponse:
             handleAuthorizationResponse(envelope, from: deviceId)
         default:
-            log("transport", "[mac_recv] Unhandled: \(envelope.type.rawValue)")
+            log("transport", "Unhandled: \(envelope.type.rawValue)")
         }
     }
 
@@ -318,33 +370,29 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     private func handlePairingAcceptance(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
-                log("pairing", "[mac_pairing] validating_request — decoding payload (\(envelope.payload.count) bytes)")
+                log("pairing", "[stage_1] Decoding PairingAcceptance…")
                 let acceptance = try encoder.decode(PairingAcceptance.self, from: envelope)
-                log("pairing", "[stage_1] Peer: \(acceptance.displayName) (\(acceptance.platform.rawValue)), pubKey=\(acceptance.publicKeyData.count) bytes, peerId=\(acceptance.deviceId)")
+                log("pairing", "[stage_1] Peer: \(acceptance.displayName) (\(acceptance.platform.rawValue))")
 
-                log("pairing", "[stage_2] Validating peer public key (\(acceptance.publicKeyData.count) bytes)…")
                 let peerIdentity = try DeviceIdentity(
                     id: acceptance.deviceId, displayName: acceptance.displayName,
                     platform: acceptance.platform, publicKeyData: acceptance.publicKeyData
                 )
-                log("pairing", "[stage_2] Peer identity valid")
+                log("pairing", "[stage_2] Peer identity valid — storing trust")
 
-                log("pairing", "[stage_3] Storing peer in PairedDeviceManager…")
                 try await deviceManager.addPairedDevice(peerIdentity)
-                log("pairing", "[stage_3] Peer stored successfully")
+                log("pairing", "[stage_3] Peer stored in PairedDeviceManager")
 
                 guard let myPubKey = localPublicKeyData else {
-                    log("pairing", "[stage_4] ERROR: local public key unavailable — cannot send confirmation")
+                    log("pairing", "[ERROR] Local public key unavailable")
                     await MainActor.run { self.pairingState = .failed }
                     return
                 }
-                log("pairing", "[stage_4] Building PairingConfirmation (myPubKey=\(myPubKey.count) bytes)…")
 
                 let signable = Data(localDeviceId.uuidString.utf8)
                     + Data(acceptance.deviceId.uuidString.utf8)
                     + Data("true".utf8)
                 let signature = try keyManager.sign(data: signable, keyTag: keyTag)
-                log("pairing", "[stage_4] Signature created (\(signature.count) bytes)")
 
                 let confirmation = PairingConfirmation(
                     deviceId: localDeviceId,
@@ -357,12 +405,8 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
                     publicKeyData: myPubKey
                 )
                 let confirmEnvelope = try encoder.encode(confirmation, type: .pairingConfirmation, sequenceNumber: 2)
-                log("pairing", "[stage_4] PairingConfirmation encoded (\(confirmEnvelope.payload.count) bytes) — sending to transport device \(deviceId)…")
-
-                let hasConnection = deviceTransportMap[deviceId] != nil
-                log("pairing", "[stage_4] deviceTransportMap has entry: \(hasConnection)")
                 try await sendToDevice(confirmEnvelope, deviceId: deviceId)
-                log("pairing", "[mac_pairing] confirmation_sent to \(acceptance.displayName)")
+                log("pairing", "[stage_4] PairingConfirmation sent")
 
                 let devices = await deviceManager.allPairedDevices()
                 await MainActor.run {
@@ -371,9 +415,9 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
                     self.connectionStatus = .paired
                 }
                 rebuildMergedDevices()
-                log("pairing", "[stage_5] Pairing COMPLETE — \(acceptance.displayName) is now trusted (\(devices.count) total)")
+                log("pairing", "[stage_5] Pairing COMPLETE with \(acceptance.displayName)")
             } catch {
-                log("pairing", "[mac_pairing] ERROR: \(error)")
+                log("pairing", "[ERROR] \(error)")
                 await MainActor.run { self.pairingState = .failed }
             }
         }
@@ -382,27 +426,66 @@ public final class MacCoordinator: ObservableObject, @unchecked Sendable {
     private func handleAuthorizationResponse(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
+                log("authorization", "[auth_resp] Decoding response…")
                 let response = try encoder.decode(AuthorizationResponse.self, from: envelope)
+                log("authorization", "[auth_resp] decision=\(response.decision.rawValue) requestId=\(response.requestId.uuidString.prefix(8))")
+
                 guard let originalRequest = pendingRequests.removeValue(forKey: response.requestId) else {
-                    log("authorization", "No pending request for \(response.requestId)")
+                    log("authorization", "[auth_resp] No pending request for this ID")
+                    await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Unknown request" }
                     return
                 }
+
                 let pubKey = await deviceManager.publicKey(for: response.responderDeviceId)
                 guard let trustedKey = pubKey else {
-                    await MainActor.run { self.lastAuthResult = "Unknown responder" }
+                    log("authorization", "[auth_resp] Responder \(response.responderDeviceId.uuidString.prefix(8)) not in paired devices")
+                    await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Unknown responder" }
                     return
                 }
+
+                log("authorization", "[auth_resp] Verifying signature…")
                 let valid = try await requester.verify(
                     response: response, originalRequest: originalRequest, trustedPublicKey: trustedKey
                 )
-                await MainActor.run {
-                    self.lastAuthResult = valid ? "Approved" : "Denied"
-                    self.lastAuthTimestamp = Date()
+
+                let resultText: String
+                let phase: AuthorizationPhase
+                if valid {
+                    resultText = "Approved"
+                    phase = .approved
+                    log("authorization", "[auth_resp] APPROVED — signature valid, decision=approved")
+                } else if response.decision == .denied {
+                    resultText = "Denied"
+                    phase = .denied
+                    log("authorization", "[auth_resp] DENIED by user")
+                } else if response.decision == .expired {
+                    resultText = "Expired"
+                    phase = .expired
+                    log("authorization", "[auth_resp] Request EXPIRED")
+                } else {
+                    resultText = "Invalid"
+                    phase = .failed
+                    log("authorization", "[auth_resp] Invalid response")
                 }
-                log("authorization", "Result: \(valid ? "APPROVED" : "DENIED")")
+
+                let shouldUnlockVault = valid && originalRequest.reason.contains("Vault")
+
+                await MainActor.run {
+                    self.authPhase = phase
+                    self.lastAuthResult = resultText
+                    self.lastAuthTimestamp = Date()
+                    if shouldUnlockVault {
+                        self.isVaultUnlocked = true
+                        self.vaultUnlockedAt = Date()
+                    }
+                }
+
+                if shouldUnlockVault {
+                    log("vault", "Secure Vault UNLOCKED via Face ID authorization")
+                }
             } catch {
-                log("authorization", "Verification failed: \(error)")
-                await MainActor.run { self.lastAuthResult = "Failed" }
+                log("authorization", "[auth_resp] Verification failed: \(error)")
+                await MainActor.run { self.authPhase = .failed; self.lastAuthResult = "Verification failed" }
             }
         }
     }

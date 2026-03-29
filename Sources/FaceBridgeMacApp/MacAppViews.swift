@@ -22,6 +22,8 @@ public struct MacMainView: View {
             switch selectedSection ?? .dashboard {
             case .dashboard:
                 MacDashboardView()
+            case .vault:
+                MacSecureVaultView()
             case .devices:
                 MacDevicesView()
             case .pairing:
@@ -38,13 +40,14 @@ public struct MacMainView: View {
 // MARK: - Sections
 
 enum MacSection: String, Identifiable, Hashable {
-    case dashboard, devices, pairing, settings, debug
+    case dashboard, vault, devices, pairing, settings, debug
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .dashboard: return "Dashboard"
+        case .vault: return "Secure Vault"
         case .devices: return "Trusted Devices"
         case .pairing: return "Pair New Device"
         case .settings: return "Settings"
@@ -55,6 +58,7 @@ enum MacSection: String, Identifiable, Hashable {
     var icon: String {
         switch self {
         case .dashboard: return "house"
+        case .vault: return "lock.shield"
         case .devices: return "iphone.and.arrow.forward"
         case .pairing: return "link.badge.plus"
         case .settings: return "gear"
@@ -63,13 +67,13 @@ enum MacSection: String, Identifiable, Hashable {
     }
 
     static func allCases(developerMode: Bool) -> [MacSection] {
-        var sections: [MacSection] = [.dashboard, .devices, .pairing, .settings]
+        var sections: [MacSection] = [.dashboard, .vault, .devices, .pairing, .settings]
         if developerMode { sections.append(.debug) }
         return sections
     }
 }
 
-// MARK: - Dashboard (Phase 6)
+// MARK: - Dashboard
 
 struct MacDashboardView: View {
     @EnvironmentObject var coordinator: MacCoordinator
@@ -78,6 +82,69 @@ struct MacDashboardView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 MacConnectionStatusCard(status: coordinator.connectionStatus)
+
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label("Quick Actions", systemImage: "bolt.fill")
+                            .font(.headline)
+
+                        HStack(spacing: 12) {
+                            Button {
+                                coordinator.requestAuthorization(reason: "Authorize action on your Mac")
+                            } label: {
+                                Label("Request Authorization", systemImage: "faceid")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .disabled(coordinator.pairedDevices.isEmpty)
+
+                            Button {
+                                coordinator.requestVaultUnlock()
+                            } label: {
+                                Label("Unlock Secure Vault", systemImage: "lock.open")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 8)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(coordinator.pairedDevices.isEmpty)
+                        }
+
+                        if coordinator.pairedDevices.isEmpty {
+                            Label("Pair your iPhone first to use authorization", systemImage: "info.circle")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(4)
+                }
+
+                if coordinator.authPhase != .idle {
+                    MacAuthStatusCard(phase: coordinator.authPhase)
+                }
+
+                if coordinator.isVaultUnlocked, let unlockedAt = coordinator.vaultUnlockedAt {
+                    GroupBox {
+                        HStack(spacing: 12) {
+                            Image(systemName: "lock.open.fill")
+                                .font(.title2)
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Secure Vault Unlocked")
+                                    .font(.headline)
+                                    .foregroundStyle(.green)
+                                Text("Unlocked \(unlockedAt, style: .relative) ago")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Button("Lock") { coordinator.lockVault() }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                        .padding(4)
+                    }
+                }
 
                 if !coordinator.pairedDevices.isEmpty {
                     GroupBox {
@@ -104,17 +171,10 @@ struct MacDashboardView: View {
                                         coordinator.friendlyNamePublic(for: device.displayName) == $0.friendlyName
                                     })
                                     if nearby != nil {
-                                        Button("Send Auth Request") {
-                                            if let tid = nearby?.transportIds.first {
-                                                coordinator.sendAuthorizationRequest(to: tid, reason: "Unlock Mac")
-                                            }
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .controlSize(.small)
+                                        Circle().fill(.green).frame(width: 8, height: 8)
+                                    } else {
+                                        Circle().fill(.orange).frame(width: 8, height: 8)
                                     }
-
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(.green)
                                 }
                                 .padding(.vertical, 4)
                             }
@@ -187,7 +247,236 @@ struct MacDashboardView: View {
     }
 }
 
-// MARK: - Connection Status Card (Phase 9)
+// MARK: - Auth Status Card
+
+struct MacAuthStatusCard: View {
+    let phase: MacCoordinator.AuthorizationPhase
+
+    var body: some View {
+        GroupBox {
+            HStack(spacing: 12) {
+                if phase == .sending || phase == .waitingForApproval {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: statusIcon)
+                        .font(.title3)
+                        .foregroundStyle(statusColor)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Authorization")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(phase.rawValue)
+                        .font(.headline)
+                        .foregroundStyle(statusColor)
+                }
+                Spacer()
+            }
+            .padding(4)
+        }
+    }
+
+    private var statusColor: Color {
+        switch phase {
+        case .idle: return .secondary
+        case .sending, .waitingForApproval: return .blue
+        case .approved: return .green
+        case .denied: return .orange
+        case .expired, .failed: return .red
+        }
+    }
+
+    private var statusIcon: String {
+        switch phase {
+        case .idle: return "minus.circle"
+        case .sending: return "arrow.up.circle"
+        case .waitingForApproval: return "iphone"
+        case .approved: return "checkmark.circle.fill"
+        case .denied: return "xmark.circle.fill"
+        case .expired: return "clock.badge.exclamationmark"
+        case .failed: return "exclamationmark.triangle.fill"
+        }
+    }
+}
+
+// MARK: - Secure Vault (Protected Feature)
+
+struct MacSecureVaultView: View {
+    @EnvironmentObject var coordinator: MacCoordinator
+
+    var body: some View {
+        VStack(spacing: 0) {
+            if coordinator.isVaultUnlocked {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        HStack {
+                            Image(systemName: "lock.open.fill")
+                                .font(.title)
+                                .foregroundStyle(.green)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Secure Vault")
+                                    .font(.title2)
+                                    .fontWeight(.bold)
+                                if let t = coordinator.vaultUnlockedAt {
+                                    Text("Unlocked \(t, style: .relative) ago via Face ID")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Button("Lock Vault") { coordinator.lockVault() }
+                                .buttonStyle(.bordered)
+                                .tint(.red)
+                        }
+
+                        Divider()
+
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Protected Credentials", systemImage: "key.fill")
+                                    .font(.headline)
+
+                                VaultCredentialRow(service: "Production Database", username: "admin@facebridge.io", value: "fb-prod-2026-x9k4m")
+                                VaultCredentialRow(service: "API Gateway", username: "service-account", value: "sk_live_Rk8f2nVpQm7xJz3L")
+                                VaultCredentialRow(service: "Deployment Key", username: "ci/cd-pipeline", value: "deploy-7f3a9c2b-e1d4-48f6")
+                            }
+                            .padding(4)
+                        }
+
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Secure Notes", systemImage: "doc.text.fill")
+                                    .font(.headline)
+
+                                Text("Recovery Phrase")
+                                    .fontWeight(.medium)
+                                Text("apple banana cherry delta echo foxtrot golf hotel india juliet kilo lima")
+                                    .font(.system(.body, design: .monospaced))
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+
+                                Text("Server Root Password")
+                                    .fontWeight(.medium)
+                                Text("Xk9#mP2$vR7!nL4@qW6")
+                                    .font(.system(.body, design: .monospaced))
+                                    .padding(12)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.black.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
+                            .padding(4)
+                        }
+
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Label("Protected Actions", systemImage: "terminal.fill")
+                                    .font(.headline)
+
+                                Button {
+                                    coordinator.log("vault", "Simulated: Deploy to production executed")
+                                } label: {
+                                    Label("Deploy to Production", systemImage: "arrow.up.to.line")
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.orange)
+
+                                Button {
+                                    coordinator.log("vault", "Simulated: Database migration executed")
+                                } label: {
+                                    Label("Run Database Migration", systemImage: "cylinder.split.1x2")
+                                        .frame(maxWidth: .infinity)
+                                        .padding(.vertical, 6)
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(.red)
+                            }
+                            .padding(4)
+                        }
+                    }
+                    .padding()
+                }
+            } else {
+                VStack(spacing: 24) {
+                    Spacer()
+
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 72))
+                        .foregroundStyle(.secondary)
+
+                    Text("Secure Vault")
+                        .font(.title)
+                        .fontWeight(.bold)
+
+                    Text("This vault contains protected credentials, secure notes, and sensitive actions. Unlock it by authorizing with Face ID on your paired iPhone.")
+                        .font(.body)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 60)
+
+                    if coordinator.authPhase == .waitingForApproval {
+                        HStack(spacing: 8) {
+                            ProgressView().controlSize(.small)
+                            Text("Waiting for iPhone approval…")
+                                .foregroundStyle(.blue)
+                        }
+                    }
+
+                    Button {
+                        coordinator.requestVaultUnlock()
+                    } label: {
+                        Label("Unlock with Face ID", systemImage: "faceid")
+                            .font(.headline)
+                            .padding(.horizontal, 24)
+                            .padding(.vertical, 12)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.large)
+                    .disabled(coordinator.pairedDevices.isEmpty || coordinator.authPhase == .waitingForApproval)
+
+                    if coordinator.pairedDevices.isEmpty {
+                        Label("Pair your iPhone first", systemImage: "info.circle")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Spacer()
+                }
+            }
+        }
+        .navigationTitle("Secure Vault")
+    }
+}
+
+struct VaultCredentialRow: View {
+    let service: String
+    let username: String
+    let value: String
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(service).fontWeight(.medium)
+            HStack {
+                Text(username)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text(value)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.blue)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(.vertical, 4)
+        Divider()
+    }
+}
+
+// MARK: - Connection Status Card
 
 struct MacConnectionStatusCard: View {
     let status: MacCoordinator.ConnectionStatus
@@ -325,7 +614,7 @@ struct MacPairingView: View {
     }
 }
 
-// MARK: - Settings (Phase 10)
+// MARK: - Settings
 
 struct MacSettingsView: View {
     @EnvironmentObject var coordinator: MacCoordinator
@@ -349,7 +638,7 @@ struct MacSettingsView: View {
                 HStack {
                     Text("Version")
                     Spacer()
-                    Text("0.1.0-alpha").foregroundStyle(.secondary)
+                    Text("0.2.0-alpha").foregroundStyle(.secondary)
                 }
             }
         }
@@ -358,11 +647,11 @@ struct MacSettingsView: View {
     }
 }
 
-// MARK: - Debug Console (Developer Mode)
+// MARK: - Debug Console
 
 struct MacDebugView: View {
     @EnvironmentObject var coordinator: MacCoordinator
-    @State private var authReason = "Unlock screen saver"
+    @State private var authReason = "Test authorization request"
 
     var body: some View {
         ScrollView {
@@ -376,7 +665,6 @@ struct MacDebugView: View {
                             HStack {
                                 Image(systemName: device.transportType == .ble ? "wave.3.right" : "wifi")
                                 Text(device.displayName).font(.caption)
-                                Text("RSSI: \(device.rssi)").font(.caption2).foregroundStyle(.secondary)
                                 Spacer()
                                 Button("Send Auth") {
                                     coordinator.sendAuthorizationRequest(to: device.id, reason: authReason)
@@ -387,33 +675,23 @@ struct MacDebugView: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 }
 
-                GroupBox("Pairing") {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("State: \(coordinator.pairingState.rawValue)").font(.caption)
-                            Spacer()
-                            Button("Generate Code") { coordinator.generatePairingCode() }
-                                .buttonStyle(.borderedProminent)
-                        }
-                        if !coordinator.pairingCode.isEmpty {
-                            Text(coordinator.pairingCode)
-                                .font(.system(.title, design: .monospaced))
-                                .fontWeight(.bold).tracking(6)
-                                .frame(maxWidth: .infinity)
-                                .padding()
-                                .background(.blue.opacity(0.1))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
-                        }
-                    }.padding(8)
-                }
-
                 GroupBox("Authorization") {
                     VStack(alignment: .leading, spacing: 8) {
                         TextField("Reason", text: $authReason).textFieldStyle(.roundedBorder)
+                        HStack {
+                            Button("Request Auth") {
+                                coordinator.requestAuthorization(reason: authReason)
+                            }.buttonStyle(.borderedProminent)
+                            Button("Unlock Vault") {
+                                coordinator.requestVaultUnlock()
+                            }.buttonStyle(.bordered)
+                        }
+                        Text("Phase: \(coordinator.authPhase.rawValue)")
+                            .font(.caption).foregroundStyle(.secondary)
                         if !coordinator.lastAuthResult.isEmpty {
                             Label(coordinator.lastAuthResult,
-                                  systemImage: coordinator.lastAuthResult.contains("Approved") ? "checkmark.circle.fill" : "xmark.circle.fill")
-                            .foregroundStyle(coordinator.lastAuthResult.contains("Approved") ? .green : .red)
+                                  systemImage: coordinator.lastAuthResult == "Approved" ? "checkmark.circle.fill" : "xmark.circle.fill")
+                            .foregroundStyle(coordinator.lastAuthResult == "Approved" ? .green : .red)
                         }
                     }.padding(8)
                 }
@@ -454,6 +732,7 @@ struct MacDebugView: View {
         case "pairing": return .orange
         case "authorization": return .green
         case "crypto": return .purple
+        case "vault": return .mint
         case "lifecycle": return .gray
         default: return .primary
         }

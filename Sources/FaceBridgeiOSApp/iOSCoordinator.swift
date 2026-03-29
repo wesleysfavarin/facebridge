@@ -21,6 +21,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     @Published public var pairingState: PairingPhase = .idle
     @Published public var pendingAuthRequest: AuthorizationRequest?
     @Published public var pendingAuthDeviceId: UUID?
+    @Published public var authProcessing: Bool = false
     @Published public var lastAuthResult: String = ""
     @Published public var lastAuthTimestamp: Date?
     @Published public var logMessages: [LogEntry] = []
@@ -68,7 +69,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
 
     // MARK: - Private
 
-    private let localDeviceId = UUID()
+    private let localDeviceId: UUID
     private let keyTag = "com.facebridge.ios.device-key"
 
     private let lanTransport: LocalNetworkTransport
@@ -87,22 +88,34 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     // MARK: - Init
 
     public init() {
+        let deviceId = Self.loadOrCreateDeviceId(key: "fb_ios_device_id")
+        self.localDeviceId = deviceId
         let store = KeychainStore()
         let km = SoftwareKeyManager(store: store)
         self.keyManager = km
         let tm = DeviceTrustManager(keychainStore: store, auditLogger: AuditLogger())
         self.trustManager = tm
-        self.responder = AuthorizationResponder(localDeviceId: UUID(), keyManager: km, trustManager: tm)
+        self.responder = AuthorizationResponder(localDeviceId: deviceId, keyManager: km, trustManager: tm)
         self.lanTransport = LocalNetworkTransport(allowInsecure: true)
         self.bleTransport = BLETransport()
         self.hasCompletedOnboarding = UserDefaults.standard.bool(forKey: "fb_onboarding_done")
         self.developerModeEnabled = UserDefaults.standard.bool(forKey: "fb_developer_mode")
     }
 
+    private static func loadOrCreateDeviceId(key: String) -> UUID {
+        if let string = UserDefaults.standard.string(forKey: key),
+           let id = UUID(uuidString: string) {
+            return id
+        }
+        let id = UUID()
+        UserDefaults.standard.set(id.uuidString, forKey: key)
+        return id
+    }
+
     // MARK: - Lifecycle
 
     public func start() {
-        log("lifecycle", "iOS coordinator starting")
+        log("lifecycle", "iOS coordinator starting (deviceId=\(localDeviceId.uuidString.prefix(8)))")
         if let existingKey = try? keyManager.publicKeyData(for: keyTag) {
             localPublicKeyData = existingKey
             log("crypto", "Loaded existing device key (\(existingKey.count) bytes)")
@@ -140,7 +153,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         log("lifecycle", "iOS coordinator ready")
     }
 
-    // MARK: - Smart Pairing (no numeric code)
+    // MARK: - Smart Pairing
 
     public func confirmPairing(with device: NearbyDevice) {
         pairingState = .confirmingDevice
@@ -175,7 +188,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                 let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: transportId)
                 await MainActor.run { self.pairingState = .waitingConfirmation }
-                log("pairing", "[ios_pairing] waiting_confirmation — PairingAcceptance sent, awaiting PairingConfirmation from Mac…")
+                log("pairing", "[stage_2] PairingAcceptance sent — waiting for PairingConfirmation…")
             } catch {
                 await MainActor.run { self.pairingState = .failed }
                 log("pairing", "[ERROR] Pairing failed: \(error)")
@@ -203,7 +216,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                 let envelope = try encoder.encode(acceptance, type: .pairingAcceptance, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
                 await MainActor.run { self.pairingState = .waitingConfirmation }
-                log("pairing", "[ios_pairing] waiting_confirmation — Acceptance sent to \(deviceId)")
+                log("pairing", "[stage_2] Acceptance sent — waiting for confirmation…")
             } catch {
                 await MainActor.run { self.pairingState = .failed }
                 log("pairing", "[ERROR] Failed to send acceptance: \(error)")
@@ -215,43 +228,53 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
 
     public func approveAuth() {
         guard let request = pendingAuthRequest, let deviceId = pendingAuthDeviceId else { return }
+        authProcessing = true
         Task {
             do {
-                log("authorization", "Requesting Face ID…")
-                try await authenticateWithBiometrics(reason: request.reason)
-                log("authorization", "Face ID succeeded")
+                log("authorization", "[auth] Processing authorization request…")
+                log("authorization", "[auth] Reason: \(request.reason)")
+                log("authorization", "[auth] Sender: \(request.senderDeviceId.uuidString.prefix(8))")
 
                 try await ensureConnected(to: deviceId)
+                log("authorization", "[auth] Calling responder (includes Face ID + trust verification)…")
                 let response = try await responder.respond(to: request, keyTag: keyTag)
+                log("authorization", "[auth] Face ID result: \(response.decision.rawValue)")
+
                 let envelope = try encoder.encode(response, type: .authorizationResponse, sequenceNumber: 1)
                 try await sendToDevice(envelope, deviceId: deviceId)
+                log("authorization", "[auth] Response sent to Mac")
 
+                let resultText = response.decision == .approved ? "Approved" : response.decision.rawValue.capitalized
                 await MainActor.run {
-                    self.lastAuthResult = "Approved"
+                    self.lastAuthResult = resultText
                     self.lastAuthTimestamp = Date()
                     self.pendingAuthRequest = nil
                     self.pendingAuthDeviceId = nil
+                    self.authProcessing = false
                 }
-                log("authorization", "Response sent: \(response.decision.rawValue)")
-            } catch let error as LAError where error.code == .userCancel || error.code == .userFallback {
-                log("authorization", "Face ID cancelled")
+            } catch let error as FaceBridgeError where error == .biometricUserCancelled || error == .biometricSystemCancelled {
+                log("authorization", "[auth] Face ID cancelled by user")
                 await MainActor.run {
                     self.lastAuthResult = "Cancelled"
                     self.pendingAuthRequest = nil
                     self.pendingAuthDeviceId = nil
+                    self.authProcessing = false
                 }
-            } catch let error as LAError {
-                log("authorization", "Face ID failed: \(error.localizedDescription)")
+            } catch let error as FaceBridgeError where error == .untrustedDevice {
+                log("authorization", "[auth] Sender not trusted — rejecting")
                 await MainActor.run {
-                    self.lastAuthResult = "Face ID failed"
+                    self.lastAuthResult = "Untrusted sender"
                     self.pendingAuthRequest = nil
                     self.pendingAuthDeviceId = nil
+                    self.authProcessing = false
                 }
             } catch {
-                log("authorization", "Failed: \(error)")
+                log("authorization", "[auth] Failed: \(error)")
                 await MainActor.run {
                     self.lastAuthResult = "Error: \(error.localizedDescription)"
                     self.pendingAuthRequest = nil
+                    self.pendingAuthDeviceId = nil
+                    self.authProcessing = false
                 }
             }
         }
@@ -260,22 +283,9 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     public func denyAuth() {
         pendingAuthRequest = nil
         pendingAuthDeviceId = nil
+        authProcessing = false
         lastAuthResult = "Denied"
         log("authorization", "Denied by user")
-    }
-
-    private func authenticateWithBiometrics(reason: String) async throws {
-        let context = LAContext()
-        context.localizedFallbackTitle = ""
-        var error: NSError?
-        guard context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) else {
-            throw error ?? LAError(.biometryNotAvailable) as NSError
-        }
-        let sanitized = String(reason.prefix(200))
-        try await context.evaluatePolicy(
-            .deviceOwnerAuthenticationWithBiometrics,
-            localizedReason: sanitized.isEmpty ? "Authorize request from your Mac" : sanitized
-        )
     }
 
     // MARK: - Device Deduplication
@@ -354,7 +364,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         if deviceTransportMap[deviceId] != nil { return }
         try await lanTransport.connect(to: deviceId)
         deviceTransportMap[deviceId] = lanTransport
-        log("transport", "Connected to \(deviceId)")
+        log("transport", "Connected to \(deviceId.uuidString.prefix(8))")
     }
 
     private func sendToDevice(_ envelope: MessageEnvelope, deviceId: UUID) async throws {
@@ -371,7 +381,6 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         let localName = UIDevice.current.name.lowercased()
         let deviceFriendly = friendlyName(for: device.displayName).lowercased()
         if deviceFriendly == localName || device.displayName.lowercased().contains(localName) {
-            log("transport", "Filtered self-discovery: \(device.displayName)")
             return
         }
         Task { @MainActor in
@@ -384,20 +393,20 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     }
 
     func handleConnect(_ deviceId: UUID, transport: (any Transport)?) {
-        log("transport", "Connected: \(deviceId)")
         if let transport { deviceTransportMap[deviceId] = transport }
         bleTransport.authorizePeer(deviceId)
         rebuildMergedDevices()
+        log("transport", "Connected: \(deviceId.uuidString.prefix(8))")
     }
 
     func handleDisconnect(_ deviceId: UUID) {
-        log("transport", "Disconnected: \(deviceId)")
         deviceTransportMap.removeValue(forKey: deviceId)
         rebuildMergedDevices()
+        log("transport", "Disconnected: \(deviceId.uuidString.prefix(8))")
     }
 
     func handleReceive(_ envelope: MessageEnvelope, from deviceId: UUID, transport: (any Transport)?) {
-        log("transport", "Received type=\(envelope.type.rawValue)")
+        log("transport", "[recv] type=\(envelope.type.rawValue)")
         if let transport, deviceTransportMap[deviceId] == nil {
             deviceTransportMap[deviceId] = transport
         }
@@ -407,7 +416,7 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         case .pairingConfirmation:
             handlePairingConfirmation(envelope, from: deviceId)
         case .pairingInvitation:
-            log("pairing", "Invitation from \(deviceId)")
+            log("pairing", "Invitation from \(deviceId.uuidString.prefix(8))")
         default:
             log("transport", "Unhandled: \(envelope.type.rawValue)")
         }
@@ -420,17 +429,16 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
     private func handlePairingConfirmation(_ envelope: MessageEnvelope, from deviceId: UUID) {
         Task {
             do {
-                log("pairing", "[ios_pairing] confirmation_received — decoding (\(envelope.payload.count) bytes)")
+                log("pairing", "[stage_3] Received PairingConfirmation")
                 let confirmation = try encoder.decode(PairingConfirmation.self, from: envelope)
-                log("pairing", "[ios_pairing] From: \(confirmation.displayName) (\(confirmation.platform.rawValue)), confirmed=\(confirmation.confirmed), pubKey=\(confirmation.publicKeyData.count) bytes")
+                log("pairing", "[stage_3] From: \(confirmation.displayName), confirmed=\(confirmation.confirmed)")
 
                 guard confirmation.confirmed else {
-                    log("pairing", "[ios_pairing] Mac REJECTED pairing")
+                    log("pairing", "[stage_3] Mac REJECTED pairing")
                     await MainActor.run { self.pairingState = .failed }
                     return
                 }
 
-                log("pairing", "[ios_pairing] Validating Mac public key (\(confirmation.publicKeyData.count) bytes)…")
                 let macIdentity = try DeviceIdentity(
                     id: confirmation.deviceId,
                     displayName: confirmation.displayName,
@@ -438,9 +446,8 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                     publicKeyData: confirmation.publicKeyData
                 )
 
-                log("pairing", "[trust] save_started — storing \(confirmation.displayName)")
+                log("pairing", "[stage_4] Storing trust for \(confirmation.displayName)…")
                 try await trustManager.addTrustedDevice(macIdentity)
-                log("pairing", "[trust] save_success")
 
                 let devices = await trustManager.allTrustedDevices()
                 await MainActor.run {
@@ -449,10 +456,9 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
                     self.connectionStatus = .connectedSecurely
                 }
                 rebuildMergedDevices()
-                log("pairing", "[trust] refresh_success — \(confirmation.displayName) is trusted (\(devices.count) total)")
-                log("pairing", "[ios_pairing] trust_persisted — PAIRING COMPLETE")
+                log("pairing", "[stage_5] PAIRING COMPLETE — \(confirmation.displayName) trusted (\(devices.count) total)")
             } catch {
-                log("pairing", "[ios_pairing] ERROR processing confirmation: \(error)")
+                log("pairing", "[ERROR] \(error)")
                 await MainActor.run { self.pairingState = .failed }
             }
         }
@@ -462,17 +468,18 @@ public final class iOSCoordinator: ObservableObject, @unchecked Sendable {
         Task {
             do {
                 let request = try encoder.decode(AuthorizationRequest.self, from: envelope)
-                log("authorization", "Auth request: \(request.reason)")
+                log("authorization", "[auth_recv] Request received — reason: \(request.reason)")
+                log("authorization", "[auth_recv] Sender: \(request.senderDeviceId.uuidString.prefix(8))")
                 sendLocalNotification(
                     title: "Authorization Request",
-                    body: "Your Mac requests authorization"
+                    body: request.reason
                 )
                 await MainActor.run {
                     self.pendingAuthRequest = request
                     self.pendingAuthDeviceId = deviceId
                 }
             } catch {
-                log("authorization", "Decode failed: \(error)")
+                log("authorization", "[auth_recv] Decode failed: \(error)")
             }
         }
     }
