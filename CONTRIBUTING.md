@@ -2,40 +2,57 @@
 
 Thank you for your interest in contributing to FaceBridge. This document outlines the guidelines, workflows, and areas where help is most needed.
 
-## Where Help Is Needed
+## How to File Issues
+
+- **Bug reports** — use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md). Include steps to reproduce, expected vs actual behavior, device/OS versions, and relevant logs.
+- **Feature requests** — use the [Feature Request template](.github/ISSUE_TEMPLATE/feature_request.md). Explain the use case and why it fits FaceBridge's scope.
+- **Security vulnerabilities** — do NOT open a public issue. See [SECURITY.md](SECURITY.md#reporting-security-issues) for private reporting.
+- **Questions and discussion** — use GitHub Discussions or file an issue with a clear description.
+
+All bug reports should be reproducible. Include device model, OS version, Xcode version, and whether you are using a physical device or simulator.
+
+## Where Help Is Most Needed
 
 ### High Impact
 
-- **Transport reliability** — improving connection stability, reconnection logic, and fallback behavior between BLE and LAN
-- **End-to-end encryption** — wiring ephemeral ECDH key exchange and AES-256-GCM into the transport layer
-- **Trust model hardening** — trust expiry, revocation propagation, and runtime integration of `TrustRelationship`
+- **Transport reliability** — connection stability, reconnection logic, fallback between BLE and LAN
+- **End-to-end encryption** — ephemeral ECDH key exchange + AES-256-GCM message encryption
+- **Trust model hardening** — trust expiry, revocation propagation, `TrustRelationship` runtime integration
 - **Certificate pinning** — binding TLS identity to pairing-derived key material
 
 ### Moderate Impact
 
-- **Testing** — additional test coverage for edge cases, real-device scenarios, and negative paths
-- **SAS UI integration** — wiring the existing SAS verification logic into the pairing user interface
-- **UX improvements** — better status feedback, accessibility, and platform-native design patterns
-- **Documentation** — developer guides, API documentation, and example integrations
+- **Test coverage** — edge cases, real-device scenarios, negative paths
+- **SAS UI integration** — wiring existing SAS verification into the pairing user interface
+- **UX improvements** — status feedback, accessibility, platform-native design patterns
+- **Documentation** — developer guides, API documentation, example integrations
 
 ### Good First Contributions
 
-- Adding test cases for existing functionality
-- Improving error messages and log clarity
-- Documentation typo fixes and clarifications
-- SwiftUI view improvements
+If you are new to the project, these are approachable starting points:
 
-### Security-Sensitive Areas
+- **Documentation** — fix typos, improve clarity, add examples
+- **UI polish** — SwiftUI view improvements, accessibility labels, layout refinements
+- **Test coverage** — add test cases for existing functionality (see `Tests/` for examples)
+- **Error messaging** — improve error messages and log clarity throughout the codebase
+- **Transport reliability** — connection recovery and retry improvements
+- **Onboarding UX** — first-launch experience, pairing flow guidance
 
-These areas require extra review rigor. Changes should include negative-path tests and document any new attack surface:
+## Security-Sensitive Areas
 
-- Cryptographic operations (key generation, signing, verification)
-- Nonce generation and validation
-- Session lifecycle and state machine
-- Trust verification and revocation
-- Transport security (TLS configuration, BLE permissions)
-- Codable `init(from:)` on security types
-- Policy evaluation logic
+These areas require extra review rigor. Changes must include negative-path tests and document any new attack surface:
+
+| Area | Files | Why it matters |
+|------|-------|----------------|
+| Cryptographic operations | `Sources/FaceBridgeCrypto/` | Key generation, signing, verification |
+| Nonce generation and validation | `Sources/FaceBridgeCore/Nonce.swift`, `ReplayProtection.swift` | Replay protection integrity |
+| Session lifecycle | `Sources/FaceBridgeCore/Session.swift` | State machine correctness |
+| Trust verification | `Sources/FaceBridgeiOSApp/DeviceTrustManager.swift`, agent `TrustedDeviceVerifier.swift` | Identity validation |
+| Transport security | `Sources/FaceBridgeTransport/` | TLS configuration, BLE permissions |
+| Codable `init(from:)` on security types | Protocol and Core types | Deserialization bypass prevention |
+| Policy evaluation | `Sources/FaceBridgeCore/PolicyEngine.swift` | Authorization gating logic |
+
+**Do not make casual changes** to cryptographic operations, signature verification, nonce handling, or trust verification without thorough testing and review. These areas directly affect the security model.
 
 ## Code Style
 
@@ -70,9 +87,17 @@ These areas require extra review rigor. Changes should include negative-path tes
 1. **One concern per PR.** Keep changes focused and reviewable.
 2. **All tests must pass.** Run `swift test` before submitting.
 3. **Add tests for new functionality.** Untested code will not be merged.
-4. **Update documentation** if your change affects public API or behavior.
+4. **Update documentation** if your change affects public API, behavior, or security model.
 5. **Write a clear PR description** explaining what changed and why.
 6. **No force pushes** to shared branches.
+7. **Reproducible bug reports** for bug fix PRs — include the issue number.
+
+## Expectations
+
+- **Tests are required** for all non-trivial changes. See `Tests/` for the existing test structure.
+- **Documentation updates** are expected when changing behavior, adding features, or modifying security properties.
+- **Security model changes** must update [docs/security-model.md](docs/security-model.md), [docs/threat-model.md](docs/threat-model.md), or [docs/limitations.md](docs/limitations.md) as appropriate.
+- **Breaking changes** must be clearly documented in the PR description and CHANGELOG.
 
 ## Development Setup
 
@@ -84,6 +109,8 @@ swift test
 ```
 
 For Xcode development, open `Package.swift` and select the appropriate scheme.
+
+See [docs/real-device-testing.md](docs/real-device-testing.md) for physical device setup.
 
 ## Architecture Guidelines
 
@@ -98,7 +125,7 @@ Dependencies flow downward: **Apps → UI/Transport → Protocol → Crypto → 
 
 Cross-cutting concerns (like `AuditLogger`) are injected, not imported directly.
 
-See [docs/architecture.md](docs/architecture.md) for the full module breakdown.
+See [docs/architecture.md](docs/architecture.md) for the full module breakdown and [docs/repository-map.md](docs/repository-map.md) for a codebase navigation guide.
 
 ## Security Contributions
 
@@ -107,7 +134,7 @@ For security-sensitive changes:
 - Include negative-path tests (invalid input, tampered data, replay attempts)
 - Verify Codable deserialization cannot bypass validation
 - Document any new attack surface in the PR description
-- Consider impact on [docs/security-model.md](docs/security-model.md) and [docs/trust-model.md](docs/trust-model.md)
+- Consider impact on [docs/security-model.md](docs/security-model.md) and [docs/threat-model.md](docs/threat-model.md)
 
 **Do not open public issues for security vulnerabilities.** Use GitHub's [private security advisory feature](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability) or contact the maintainer directly. See [SECURITY.md](SECURITY.md).
 
@@ -119,6 +146,7 @@ If your change affects the security model, trust chain, or known limitations, up
 |----------|----------|
 | Architecture | [docs/architecture.md](docs/architecture.md) |
 | Security Model | [docs/security-model.md](docs/security-model.md) |
+| Threat Model | [docs/threat-model.md](docs/threat-model.md) |
 | Trust Model | [docs/trust-model.md](docs/trust-model.md) |
 | Limitations | [docs/limitations.md](docs/limitations.md) |
 | Protocol | [docs/protocol-overview.md](docs/protocol-overview.md) |

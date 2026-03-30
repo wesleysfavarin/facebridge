@@ -1,5 +1,7 @@
 # Architecture
 
+> **Experimental alpha.** This document describes the architecture of a research prototype. See [threat-model.md](threat-model.md) for security boundaries and [limitations.md](limitations.md) for known constraints.
+
 FaceBridge is organized as a Swift Package Manager workspace with eight modules and clear dependency boundaries. Each module has a single area of responsibility, and dependencies flow strictly downward.
 
 ## Module Map
@@ -233,6 +235,8 @@ FaceBridge defines three protected actions that are controlled entirely within t
 
 Each action follows the same authorization flow. The Mac sets `activeAction` before sending the request, and upon receiving a verified approval response, dispatches the corresponding action handler.
 
+**FaceBridge controls only its own protected actions.** It does not intercept, replace, or extend native macOS or iOS system authentication prompts (login, Touch ID, App Store, Apple Pay, FileVault, Keychain, Safari passwords). The protected action model is entirely application-scoped.
+
 ## Session Lifecycle
 
 ```
@@ -282,3 +286,14 @@ If no transport is available, the request fails with a specific error state indi
 - Key is invalidated if biometric enrollment changes (e.g., new fingerprint or face added)
 - Available on physical iOS devices only; simulator falls back to `SoftwareKeyManager`
 - macOS Secure Enclave requires Apple Silicon or T2 chip with Touch ID
+
+## Runtime Notes
+
+FaceBridge is designed for real-device, local-network operation between a Mac and an iPhone.
+
+- **Transport selection** is automatic — the Mac coordinator selects the best available transport (active connection > trusted nearby > any nearby)
+- **Bonjour discovery** runs continuously; BLE scanning activates when local network peers are unavailable
+- **Pairing** requires both apps to be open simultaneously; the Mac generates the code, the iPhone enters it
+- **Authorization requests** can be sent while the iPhone app is in the foreground; background execution is limited by iOS app lifecycle
+- **The Mac agent** (`FaceBridgeMacAgent`) runs as a headless daemon and handles authorization without a GUI
+- **Simulator limitations** — the iOS Simulator cannot access the Secure Enclave or Face ID hardware; software key fallback and simulated biometrics are used instead

@@ -8,15 +8,25 @@ Experimental biometric authorization bridge between macOS and iPhone using Secur
 
 ---
 
-FaceBridge explores whether biometric authorization can be securely delegated from an iPhone to a Mac using only public Apple APIs. It pairs a Mac with an iPhone, establishes a cryptographic trust relationship, and allows the Mac to request Face ID or Touch ID approval for application-defined protected actions.
+## Project Status
 
-> **Project Status: Experimental Alpha**
+> **v0.3.0-alpha — Experimental**
 >
 > - Real-device tested on Mac and iPhone
 > - Built entirely with public Apple APIs
 > - Alpha-quality — not production-ready
 > - No third-party security audit performed
 > - Published for research, experimentation, and community review
+
+FaceBridge explores whether biometric authorization can be securely delegated from an iPhone to a Mac using only public Apple APIs. It pairs a Mac with an iPhone, establishes a cryptographic trust relationship, and allows the Mac to request Face ID or Touch ID approval for application-defined protected actions.
+
+## Who This May Interest
+
+- **Swift engineers** exploring cross-device communication with CryptoKit, CoreBluetooth, and Network.framework
+- **Apple platform security engineers** interested in Secure Enclave key management and biometric gating patterns
+- **Secure Enclave / LocalAuthentication researchers** studying hardware-backed identity on Apple silicon
+- **Distributed identity and trust model developers** investigating device pairing and authorization delegation
+- **Open-source contributors** looking for a well-documented Swift project with clear security boundaries
 
 ## What FaceBridge Can Do Today
 
@@ -38,6 +48,8 @@ FaceBridge includes three built-in protected actions that demonstrate the author
 | **Run Protected Command** | Executes a predefined command (e.g., opens Safari) |
 | **Reveal Protected File** | Displays hidden content in the Mac app |
 
+These are application-defined actions controlled entirely by FaceBridge. They are not native system prompts.
+
 ## What FaceBridge Does NOT Do
 
 - Does not replace macOS login, FileVault, or screen unlock
@@ -47,25 +59,18 @@ FaceBridge includes three built-in protected actions that demonstrate the author
 - Does not intercept any native macOS or iOS system dialogs
 - Does not use private or undocumented Apple APIs
 - Does not operate over the public internet
+- Does not grant system-level biometric delegation
 
-## Design Goals
+FaceBridge operates entirely at the application layer. See [docs/limitations.md](docs/limitations.md) for the complete list.
 
-FaceBridge was built to explore a specific question: *can biometric authorization be delegated from one Apple device to another in a secure, verifiable way, using only public APIs?*
-
-The project prioritizes:
-
-- **Transparency** — all security properties and limitations are documented honestly
-- **Verifiability** — authorization is based on signed messages, not trust-on-first-use
-- **Separation of concerns** — the Mac requests, the iPhone authenticates, neither trusts the other implicitly
-- **Public APIs only** — no private frameworks, no entitlement hacks, no system-level integration
-
-### Non-Goals
+## Non-Goals
 
 - Production deployment
 - System-level authentication replacement
 - Financial or safety-critical authorization
 - Cross-internet operation
 - Apple platform endorsement
+- Native system prompt interception
 
 ## Architecture
 
@@ -86,7 +91,7 @@ Dependencies flow strictly downward: **Apps → UI/Transport → Protocol → Cr
 
 See [docs/architecture.md](docs/architecture.md) for module responsibilities, flow diagrams, and the complete authorization sequence.
 
-## Security
+## Security Model
 
 FaceBridge implements a defense-in-depth security model:
 
@@ -102,7 +107,7 @@ FaceBridge implements a defense-in-depth security model:
 | BLE transport | Encryption-required characteristic permissions |
 | Input validation | All security types validate on Codable deserialization |
 
-See [docs/security-model.md](docs/security-model.md) for the full threat model and [docs/trust-model.md](docs/trust-model.md) for trust chain details.
+See [docs/security-model.md](docs/security-model.md) for the full threat analysis and [docs/threat-model.md](docs/threat-model.md) for security boundaries.
 
 ## Real-Device Status
 
@@ -129,27 +134,6 @@ Key limitations of the current alpha release:
 - Not externally audited
 
 See [docs/limitations.md](docs/limitations.md) for the complete list.
-
-## Repository Map
-
-```
-├── Sources/
-│   ├── FaceBridgeCore/          Domain models and business logic
-│   ├── FaceBridgeCrypto/        Cryptographic operations
-│   ├── FaceBridgeProtocol/      Message schemas and serialization
-│   ├── FaceBridgeTransport/     BLE and local network transport
-│   ├── FaceBridgeSharedUI/      Shared SwiftUI components
-│   ├── FaceBridgeiOSApp/        iPhone authenticator app
-│   ├── FaceBridgeMacApp/        macOS companion app
-│   └── FaceBridgeMacAgent/      macOS background agent
-├── Tests/                       145 tests across 32 suites
-├── App/                         Xcode app targets (iOS, macOS, macOS Agent)
-├── Resources/                   Entitlements, plists, privacy manifest
-├── docs/                        Architecture, security, trust, and testing docs
-├── .github/                     CI workflow and issue templates
-├── Package.swift                Swift Package Manager manifest
-└── project.yml                  Xcode project generation
-```
 
 ## Getting Started
 
@@ -192,13 +176,38 @@ See [docs/real-device-testing.md](docs/real-device-testing.md) for complete setu
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](docs/architecture.md) | Module map, responsibilities, and authorization flow |
-| [Security Model](docs/security-model.md) | Threat model, mitigations, and residual risks |
-| [Trust Model](docs/trust-model.md) | Pairing, identity binding, and revocation |
-| [Protocol Overview](docs/protocol-overview.md) | Request/response format, signing, and replay protection |
+| [Architecture](docs/architecture.md) | Module map, responsibilities, authorization and pairing flows |
+| [Security Model](docs/security-model.md) | Threat analysis, mitigations, cryptographic primitives, residual risks |
+| [Threat Model](docs/threat-model.md) | Protected assets, addressed threats, out-of-scope threats, security boundaries |
+| [Trust Model](docs/trust-model.md) | Pairing ceremony, identity binding, revocation, trust lifecycle |
+| [Protocol Overview](docs/protocol-overview.md) | Request/response format, signing, replay protection |
 | [Limitations](docs/limitations.md) | Known constraints and scope boundaries |
-| [Real-Device Testing](docs/real-device-testing.md) | Setup, testing, and troubleshooting guide |
-| [Release Status](docs/release-status.md) | Current maturity, roadmap, and production requirements |
+| [Real-Device Testing](docs/real-device-testing.md) | Setup, test scenarios, expected results, troubleshooting |
+| [Release Status](docs/release-status.md) | Current maturity, roadmap, production requirements |
+| [Repository Map](docs/repository-map.md) | Codebase guide for first-time contributors |
+
+## Repository Map
+
+```
+├── Sources/
+│   ├── FaceBridgeCore/          Domain models and business logic
+│   ├── FaceBridgeCrypto/        Cryptographic operations
+│   ├── FaceBridgeProtocol/      Message schemas and serialization
+│   ├── FaceBridgeTransport/     BLE and local network transport
+│   ├── FaceBridgeSharedUI/      Shared SwiftUI components
+│   ├── FaceBridgeiOSApp/        iPhone authenticator app
+│   ├── FaceBridgeMacApp/        macOS companion app
+│   └── FaceBridgeMacAgent/      macOS background agent
+├── Tests/                       145 tests across 32 suites
+├── App/                         Xcode app targets (iOS, macOS, macOS Agent)
+├── Resources/                   Entitlements, plists, privacy manifest
+├── docs/                        Architecture, security, trust, and testing docs
+├── .github/                     CI workflow and issue templates
+├── Package.swift                Swift Package Manager manifest
+└── project.yml                  Xcode project generation
+```
+
+See [docs/repository-map.md](docs/repository-map.md) for a detailed guide to navigating the codebase.
 
 ## Contributing
 

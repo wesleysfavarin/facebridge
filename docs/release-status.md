@@ -85,4 +85,4 @@ It is not published because it is production-ready. It is published because the 
 | v0.7.0 | Code signing, notarization, distribution packaging |
 | v1.0.0 | Third-party audit, App Store submission, production target |
 
-See [CHANGELOG.md](../CHANGELOG.md) for version history.
+See [CHANGELOG.md](../CHANGELOG.md) for version history and [threat-model.md](threat-model.md) for security boundaries.

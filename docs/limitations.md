@@ -2,6 +2,8 @@
 
 This document provides a complete list of known limitations in FaceBridge. These are not bugs — they represent architectural boundaries, incomplete features, or deliberate design trade-offs in the current alpha release.
 
+> FaceBridge is an experimental alpha project — an app-level authorization prototype, not a production security system. It has not undergone a third-party security audit.
+
 ## Scope Boundaries
 
 FaceBridge does **not** do any of the following:

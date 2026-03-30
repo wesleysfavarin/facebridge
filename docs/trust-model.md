@@ -81,6 +81,14 @@ FaceBridge distinguishes between two categories of discovered devices:
 
 A nearby device may represent the same physical device as a trusted entry. The Mac coordinator uses fuzzy name matching and transport ID correlation to merge these into a unified view. Authorization requests are only sent to trusted devices.
 
+### Multiple Transport Discovery
+
+One physical device may be discovered through multiple transports simultaneously. BLE and LAN report devices with different transport-level identifiers, but both may represent the same trusted device.
+
+The Mac coordinator uses fuzzy name matching and transport ID correlation to merge these into a unified view. Authorization requests are routed via the best available transport for a given trusted device, regardless of which transport discovered it.
+
+Transport-level identity is not cryptographically bound to pairing-level identity. The binding is based on device ID matching, not on transport authentication.
+
 ### Why Duplicates Can Appear
 
 - A device reinstalled FaceBridge generates a new `localDeviceId`

@@ -74,6 +74,26 @@ The agent runs as a background process, listening for authorization requests.
 2. Approve with Face ID on the iPhone
 3. The Mac UI reveals the hidden content
 
+### Expected Results
+
+After each successful authorization:
+
+| What you see | Where |
+|--------------|-------|
+| Authorization prompt with action name and device identity | iPhone |
+| Face ID system dialog | iPhone |
+| "Approved" confirmation with checkmark | iPhone |
+| Action status changes from "Pending" to "Approved" | Mac |
+| Protected content is revealed or command executes | Mac |
+
+After a denied authorization:
+
+| What you see | Where |
+|--------------|-------|
+| "Denied" status on the authorization prompt | iPhone |
+| Action status changes to "Denied" | Mac |
+| No protected content is revealed | Mac |
+
 ### Denial Flow
 
 1. Trigger any protected action on the Mac
