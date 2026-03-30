@@ -1,6 +1,10 @@
 # FaceBridge
 
-A privacy-first experimental biometric authorization bridge between macOS and iPhone.
+Experimental biometric authorization bridge between macOS and iPhone using Secure Enclave and public Apple APIs.
+
+### Project Topics
+
+`Swift` · `iOS` · `macOS` · `Secure Enclave` · `Face ID` · `Touch ID` · `Cryptography` · `Bluetooth` · `Local Network` · `Authentication` · `Security Engineering` · `Open Source`
 
 ---
 
@@ -220,3 +224,9 @@ Created by **Wesley Favarin**.
 
 - GitHub: [github.com/wesleysfavarin](https://github.com/wesleysfavarin)
 - LinkedIn: [linkedin.com/in/wesley-s-favarin-61249755](https://www.linkedin.com/in/wesley-s-favarin-61249755)
+
+---
+
+### Keywords
+
+biometric authorization · secure enclave · face id authentication · macos ios trust model · cross device authentication · device pairing security · bluetooth authorization · local network authentication · distributed identity apple platforms
