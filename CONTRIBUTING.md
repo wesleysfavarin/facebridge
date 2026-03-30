@@ -1,28 +1,60 @@
 # Contributing to FaceBridge
 
-Thank you for your interest in contributing to FaceBridge. This document outlines the guidelines and workflows for contributing.
+Thank you for your interest in contributing to FaceBridge. This document outlines the guidelines, workflows, and areas where help is most needed.
+
+## Where Help Is Needed
+
+### High Impact
+
+- **Transport reliability** — improving connection stability, reconnection logic, and fallback behavior between BLE and LAN
+- **End-to-end encryption** — wiring ephemeral ECDH key exchange and AES-256-GCM into the transport layer
+- **Trust model hardening** — trust expiry, revocation propagation, and runtime integration of `TrustRelationship`
+- **Certificate pinning** — binding TLS identity to pairing-derived key material
+
+### Moderate Impact
+
+- **Testing** — additional test coverage for edge cases, real-device scenarios, and negative paths
+- **SAS UI integration** — wiring the existing SAS verification logic into the pairing user interface
+- **UX improvements** — better status feedback, accessibility, and platform-native design patterns
+- **Documentation** — developer guides, API documentation, and example integrations
+
+### Good First Contributions
+
+- Adding test cases for existing functionality
+- Improving error messages and log clarity
+- Documentation typo fixes and clarifications
+- SwiftUI view improvements
+
+### Security-Sensitive Areas
+
+These areas require extra review rigor. Changes should include negative-path tests and document any new attack surface:
+
+- Cryptographic operations (key generation, signing, verification)
+- Nonce generation and validation
+- Session lifecycle and state machine
+- Trust verification and revocation
+- Transport security (TLS configuration, BLE permissions)
+- Codable `init(from:)` on security types
+- Policy evaluation logic
 
 ## Code Style
 
-- Use modern Swift syntax (5.9+)
-- Prefer `async/await` over callback-based patterns
-- Follow protocol-oriented architecture
-- Use dependency injection for testability
+- Modern Swift syntax (5.9+)
+- Prefer `async/await` over callbacks
+- Protocol-oriented architecture
+- Dependency injection for testability
 - Keep types `Sendable` where applicable
-- Minimal comments — code should be self-documenting
-- Use clear, descriptive naming over abbreviations
-- Keep files focused on a single responsibility
+- Clear, descriptive naming over abbreviations
+- Single-responsibility files
 
 ### Formatting
 
-- Use Xcode's default formatting (4-space indentation)
+- Xcode default formatting (4-space indentation)
 - Maximum line length: 120 characters (soft limit)
-- Group related imports logically
+- Group imports logically
 - Use `// MARK: -` for section organization in larger files
 
 ## Branch Naming
-
-Use the following prefixes:
 
 | Prefix | Purpose |
 |--------|---------|
@@ -33,11 +65,6 @@ Use the following prefixes:
 | `docs/` | Documentation changes |
 | `test/` | Test additions or improvements |
 
-Examples:
-- `feature/proximity-auto-approve`
-- `fix/nonce-expiration-edge-case`
-- `security/replay-window-hardening`
-
 ## Pull Request Requirements
 
 1. **One concern per PR.** Keep changes focused and reviewable.
@@ -47,95 +74,20 @@ Examples:
 5. **Write a clear PR description** explaining what changed and why.
 6. **No force pushes** to shared branches.
 
-### PR Template
-
-```
-## Summary
-
-Brief description of the change.
-
-## Motivation
-
-Why is this change needed?
-
-## Changes
-
-- List of specific changes
-
-## Testing
-
-- How was this tested?
-- Any edge cases considered?
-
-## Security Considerations
-
-- Does this change affect the security model?
-- Any new attack surface?
-```
-
-## Security Reporting
-
-**Do not open public issues for security vulnerabilities.**
-
-If you discover a security issue:
-
-1. Use GitHub's private vulnerability reporting feature, or
-2. Contact the maintainer directly
-3. Include detailed reproduction steps
-4. Allow reasonable time for remediation before disclosure
-
-See [SECURITY.md](SECURITY.md) for the full security policy.
-
-## Issue Templates
-
-### Bug Report
-
-When filing a bug, include:
-
-- Platform and OS version
-- Swift and Xcode version
-- Steps to reproduce
-- Expected vs actual behavior
-- Relevant logs or error messages
-
-### Feature Request
-
-When proposing a feature:
-
-- Describe the use case
-- Explain the expected behavior
-- Consider security implications
-- Note any alternative approaches considered
-
-## Feature Proposal Workflow
-
-1. **Open a discussion** (not an issue) for the initial proposal
-2. **Gather feedback** from maintainers and community
-3. **Create an issue** once the approach is agreed upon
-4. **Submit a PR** referencing the issue
-5. **Iterate** based on code review feedback
-
 ## Development Setup
 
 ```bash
-# Clone the repository
-git clone https://github.com/wesleysfavarin/FaceBridge.git
-cd FaceBridge
-
-# Build
+git clone https://github.com/wesleysfavarin/facebridge.git
+cd facebridge
 swift build
-
-# Run tests
 swift test
 ```
 
-For full Xcode workspace development:
-
-1. Open `Package.swift` in Xcode
-2. Select the appropriate scheme
-3. Build and run tests
+For Xcode development, open `Package.swift` and select the appropriate scheme.
 
 ## Architecture Guidelines
+
+Dependencies flow downward: **Apps → UI/Transport → Protocol → Crypto → Core**.
 
 - **FaceBridgeCore** owns domain models and business logic
 - **FaceBridgeCrypto** handles all cryptographic operations
@@ -144,44 +96,33 @@ For full Xcode workspace development:
 - **FaceBridgeSharedUI** provides reusable SwiftUI components
 - **App targets** orchestrate module interactions
 
-Dependencies flow downward: Apps → UI/Transport → Protocol → Crypto → Core.
-
 Cross-cutting concerns (like `AuditLogger`) are injected, not imported directly.
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for a detailed module breakdown with flow diagrams.
+See [docs/architecture.md](docs/architecture.md) for the full module breakdown.
 
-## Security-Sensitive Contributions
-
-If your change touches any of the following, extra review rigor applies:
-
-- Cryptographic operations (key generation, signing, verification, hashing)
-- Nonce generation or validation
-- Session lifecycle or state machine
-- Trust verification or revocation
-- Transport security (TLS configuration, BLE permissions)
-- Codable `init(from:)` on security types
-- Policy evaluation logic
+## Security Contributions
 
 For security-sensitive changes:
+
 - Include negative-path tests (invalid input, tampered data, replay attempts)
 - Verify Codable deserialization cannot bypass validation
 - Document any new attack surface in the PR description
-- Consider impact on [TRUST_MODEL.md](TRUST_MODEL.md) and [SECURITY.md](SECURITY.md)
+- Consider impact on [docs/security-model.md](docs/security-model.md) and [docs/trust-model.md](docs/trust-model.md)
+
+**Do not open public issues for security vulnerabilities.** Use GitHub's [private security advisory feature](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability) or contact the maintainer directly. See [SECURITY.md](SECURITY.md).
 
 ## Documentation
 
-FaceBridge maintains several documentation files that should be kept in sync with code changes:
+If your change affects the security model, trust chain, or known limitations, update the relevant document:
 
-| File | Purpose |
-|------|---------|
-| [README.md](README.md) | Project overview and quick start |
-| [SECURITY.md](SECURITY.md) | Threat model and security policy |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | Module responsibilities and flow diagrams |
-| [TRUST_MODEL.md](TRUST_MODEL.md) | Trust establishment and verification |
-| [LIMITATIONS.md](LIMITATIONS.md) | Known constraints and gaps |
-| [ROADMAP.md](ROADMAP.md) | Release milestones |
-
-If your change affects the security model, trust chain, or known limitations, update the relevant documentation.
+| Document | Location |
+|----------|----------|
+| Architecture | [docs/architecture.md](docs/architecture.md) |
+| Security Model | [docs/security-model.md](docs/security-model.md) |
+| Trust Model | [docs/trust-model.md](docs/trust-model.md) |
+| Limitations | [docs/limitations.md](docs/limitations.md) |
+| Protocol | [docs/protocol-overview.md](docs/protocol-overview.md) |
+| Release Status | [docs/release-status.md](docs/release-status.md) |
 
 ## License
 

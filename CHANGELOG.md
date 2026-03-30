@@ -5,7 +5,37 @@ All notable changes to FaceBridge will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.0] - 2026-03-28
+## [0.3.0-alpha] - 2026-03-29
+
+### Added
+
+- Three stable protected actions: Unlock Secure Vault, Run Protected Command, Reveal Protected File
+- `ProtectedAction` enum and `activeAction` tracking for response dispatch
+- Deterministic transport routing via `bestAvailableTransportId()` with 4-level fallback
+- Authorization Lab panel for developer testing
+- Unpair functionality on both Mac and iPhone (remove individual or all devices)
+- Enhanced iOS authorization sheet with action-specific icons and confirmation state
+- Protected Actions section on Mac dashboard with status cards
+- Comprehensive `/docs` folder with architecture, security model, trust model, protocol overview, limitations, real-device testing guide, and release status documentation
+- Pull request template (`.github/PULL_REQUEST_TEMPLATE.md`)
+
+### Changed
+
+- Expanded `AuthorizationPhase` with specific error states: `noTrustedDevice`, `transportUnavailable`, `sendFailed`, `peerDisconnected`, `verificationFailed`
+- Fixed `AuthorizationRequest.signable` timestamp to use whole seconds (prevents ISO 8601 encode/decode mismatch)
+- Removed auto-approve on iOS `FaceIDAuthSheet` — user must tap Authorize manually
+- Increased authorization request TTL from 30s to 60s for real-device latency
+- README completely rewritten as a polished project landing page
+- CONTRIBUTING.md enhanced with contribution categories and security guidance
+- SECURITY.md streamlined to policy document linking to detailed security model
+- Moved detailed documentation to `/docs` folder for cleaner repository root
+- Updated `.gitignore` with comprehensive exclusion patterns
+
+### Removed
+
+- Redundant top-level documentation files (`ARCHITECTURE.md`, `TRUST_MODEL.md`, `LIMITATIONS.md`, `ROADMAP.md`) — content consolidated into `/docs`
+
+## [0.1.0-alpha] - 2026-03-28
 
 ### Added
 
