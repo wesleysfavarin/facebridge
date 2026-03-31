@@ -20,6 +20,33 @@ Experimental biometric authorization bridge between macOS and iPhone using Secur
 
 FaceBridge explores whether biometric authorization can be securely delegated from an iPhone to a Mac using only public Apple APIs. It pairs a Mac with an iPhone, establishes a cryptographic trust relationship, and allows the Mac to request Face ID or Touch ID approval for application-defined protected actions.
 
+## Screenshots
+
+### iOS App — Onboarding
+
+<p>
+<img src="docs/images/ios/01-onboarding-faceid.png" width="180" alt="Unlock your Mac with Face ID"/>
+<img src="docs/images/ios/02-onboarding-security.png" width="180" alt="Secure and Private"/>
+<img src="docs/images/ios/03-onboarding-pairing.png" width="180" alt="Pair your devices"/>
+</p>
+
+### iOS App — Device Pairing and Trust
+
+<p>
+<img src="docs/images/ios/07-home-nearby.png" width="180" alt="Home — Device nearby"/>
+<img src="docs/images/ios/08-pair-device.png" width="180" alt="Pair Device selection"/>
+<img src="docs/images/ios/09-home-paired.png" width="180" alt="Home — Paired"/>
+<img src="docs/images/ios/10-trusted-devices.png" width="180" alt="Trusted Devices"/>
+</p>
+
+### iOS App — Settings
+
+<p>
+<img src="docs/images/ios/11-settings.png" width="180" alt="Settings — Connection status and developer mode"/>
+</p>
+
+> **Demo video:** A full recording of the pairing and authorization flow on real hardware is available at [`docs/images/facebridge-demo.mp4`](docs/images/facebridge-demo.mp4).
+
 ## Who This May Interest
 
 - **Swift engineers** exploring cross-device communication with CryptoKit, CoreBluetooth, and Network.framework
