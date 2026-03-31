@@ -48,6 +48,13 @@ FaceBridge explores whether biometric authorization can be securely delegated fr
 
 > The animated preview loops automatically. Click it to download the full-length demo video.
 
+### macOS App
+
+<p>
+<img src="docs/images/macos/01-dashboard-nearby.png" width="420" alt="Mac Dashboard — Device nearby, protected actions require pairing"/>
+<img src="docs/images/macos/02-dashboard-paired.png" width="420" alt="Mac Dashboard — Paired with iPhone, protected actions available"/>
+</p>
+
 ## Who This May Interest
 
 - **Swift engineers** exploring cross-device communication with CryptoKit, CoreBluetooth, and Network.framework
