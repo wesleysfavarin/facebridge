@@ -43,10 +43,10 @@ FaceBridge explores whether biometric authorization can be securely delegated fr
 
 <p>
 <img src="docs/images/ios/11-settings.png" width="180" alt="Settings — Connection status and developer mode"/>
-<video src="https://github.com/wesleysfavarin/facebridge/raw/main/docs/images/facebridge-demo.mp4" width="180" controls muted playsinline>
-  Your browser does not support the video tag.
-</video>
+<a href="docs/images/facebridge-demo.mp4"><img src="docs/images/facebridge-demo-preview.gif" width="180" alt="Demo — Pairing and authorization flow"/></a>
 </p>
+
+> The animated preview loops automatically. Click it to download the full-length demo video.
 
 ## Who This May Interest
 
