@@ -87,7 +87,7 @@ All confirmed findings from the second audit were resolved:
 
 ## Known Limitations
 
-These limitations are documented in detail in [LIMITATIONS.md](LIMITATIONS.md):
+These limitations are documented in detail in [limitations.md](limitations.md):
 
 - **No forward secrecy**: HKDF abstraction exists; ephemeral ECDH not wired
 - **No E2E encryption**: Relies on transport-layer protection (TLS/BLE encryption)
@@ -120,8 +120,8 @@ These limitations are documented in detail in [LIMITATIONS.md](LIMITATIONS.md):
 
 For contributors and reviewers:
 
-1. Read [SECURITY.md](SECURITY.md) and [TRUST_MODEL.md](TRUST_MODEL.md) for the security model
-2. Read [LIMITATIONS.md](LIMITATIONS.md) for known constraints
+1. Read [SECURITY.md](../SECURITY.md) and [trust-model.md](trust-model.md) for the security model
+2. Read [limitations.md](limitations.md) for known constraints
 3. Run `swift test` to verify all 145 tests pass
-4. Review [ARCHITECTURE.md](ARCHITECTURE.md) for module structure
-5. Check [ROADMAP.md](ROADMAP.md) for v0.2.0 priorities
+4. Review [architecture.md](architecture.md) for module structure
+5. Check [release-status.md](release-status.md) for roadmap and priorities

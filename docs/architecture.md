@@ -2,7 +2,7 @@
 
 > **Experimental alpha.** This document describes the architecture of a research prototype. See [threat-model.md](threat-model.md) for security boundaries and [limitations.md](limitations.md) for known constraints.
 
-FaceBridge is organized as a Swift Package Manager workspace with eight modules and clear dependency boundaries. Each module has a single area of responsibility, and dependencies flow strictly downward.
+FaceBridge is organized as a Swift Package Manager workspace with eight modules and clear dependency boundaries. Each module has a single area of responsibility, and dependencies flow strictly downward — no circular dependencies exist.
 
 ## Module Map
 
@@ -12,32 +12,37 @@ FaceBridge is organized as a Swift Package Manager workspace with eight modules 
 │   FaceBridgeiOSApp    FaceBridgeMacApp    FaceBridgeMacAgent  │
 └────────┬─────────────────┬──────────────────┬────────────┘
          │                 │                  │
-         ▼                 ▼                  │
-  ┌──────────────────┐                       │
-  │  FaceBridgeSharedUI  │                       │
-  └────────┬─────────┘                       │
-           │                                 │
-           ▼                 ▼               ▼
-  ┌────────────────────────────────────────────────────┐
-  │               FaceBridgeTransport                   │
-  │    BLE · Local Network · Fragmentation · Encoder    │
-  └──────────────────────┬─────────────────────────────┘
-                         │
-                         ▼
+         ▼                 ▼                  ▼
+  ┌──────────────────┐  ┌──────────────────────────────────┐
+  │ FaceBridgeSharedUI│  │       FaceBridgeTransport         │
+  │                   │  │  BLE · Local Network · Fragment.  │
+  └────────┬──────────┘  └──────────────┬───────────────────┘
+           │                            │
+           └────────────┬───────────────┘
+                        ▼
   ┌────────────────────────────────────────────────────┐
   │               FaceBridgeProtocol                    │
   │    Request · Response · Session · Envelope · Pairing │
   └──────────────────────┬─────────────────────────────┘
                          │
-            ┌────────────┴────────────┐
-            ▼                         ▼
-  ┌──────────────────┐     ┌───────────────────┐
-  │  FaceBridgeCrypto │     │   FaceBridgeCore   │
-  │  Secure Enclave   │     │   Domain Models    │
-  │  Signing · SAS    │     │   Nonce · Session  │
-  │  HKDF · Keychain  │     │   Policy · Audit   │
-  └──────────────────┘     └───────────────────┘
+  ┌──────────────────┐   │
+  │  FaceBridgeCrypto │   │
+  │  Secure Enclave   │   │
+  │  Signing · SAS    │   │
+  │  HKDF · Keychain  │   │
+  └────────┬──────────┘   │
+           │              │
+           └──────┬───────┘
+                  ▼
+         ┌───────────────────┐
+         │   FaceBridgeCore   │
+         │   Domain Models    │
+         │   Nonce · Session  │
+         │   Policy · Audit   │
+         └───────────────────┘
 ```
+
+**Dependency graph:** Core has no dependencies. Crypto and Protocol each depend only on Core (they are siblings). Transport and SharedUI each depend on Core + Protocol (they are siblings). MacAgent depends on Core, Crypto, Protocol, and Transport.
 
 ## Module Responsibilities
 

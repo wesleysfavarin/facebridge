@@ -2,6 +2,14 @@
 
 Thank you for your interest in contributing to FaceBridge. This document outlines the guidelines, workflows, and areas where help is most needed.
 
+## Start Here
+
+1. Read the [README](README.md) for what FaceBridge does and does not do
+2. Browse the [Repository Map](docs/repository-map.md) to understand the codebase layout
+3. Run `swift build && swift test` to verify your setup
+4. Pick an area from **Good First Contributions** below
+5. Read the [Architecture](docs/architecture.md) for the module you want to change
+
 ## How to File Issues
 
 - **Bug reports** — use the [Bug Report template](.github/ISSUE_TEMPLATE/bug_report.md). Include steps to reproduce, expected vs actual behavior, device/OS versions, and relevant logs.
@@ -114,7 +122,7 @@ See [docs/real-device-testing.md](docs/real-device-testing.md) for physical devi
 
 ## Architecture Guidelines
 
-Dependencies flow downward: **Apps → UI/Transport → Protocol → Crypto → Core**.
+Dependencies flow downward. **Crypto** and **Protocol** are siblings on top of **Core**. **Transport** and **SharedUI** sit on **Core + Protocol**. Apps depend on the layers below them.
 
 - **FaceBridgeCore** owns domain models and business logic
 - **FaceBridgeCrypto** handles all cryptographic operations

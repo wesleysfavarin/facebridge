@@ -80,7 +80,7 @@ v0.1.0-alpha
 - [x] README reflects actual architecture
 - [x] SECURITY.md documents threat model and mitigations
 - [x] CONTRIBUTING.md provides development guidance
-- [x] ROADMAP.md outlines future work
+- [x] release-status.md outlines future work
 - [x] LICENSE file present (MIT)
 - [x] No TODO/FIXME in security-critical paths
 - [x] All tests pass

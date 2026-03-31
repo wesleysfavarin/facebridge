@@ -13,7 +13,7 @@ Two comprehensive security audits were performed on FaceBridge, identifying 35 f
 - BLE fragmentation wired into runtime
 - Dead code removed (.claude/worktrees)
 
-**Remaining residual risks** (documented in [LIMITATIONS.md](LIMITATIONS.md)):
+**Remaining residual risks** (documented in [limitations.md](limitations.md)):
 - No forward secrecy (HKDF ready, ECDH not wired)
 - No E2E encryption (transport-layer only)
 - No certificate pinning

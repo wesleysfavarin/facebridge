@@ -85,7 +85,7 @@ FaceBridge includes three built-in protected actions that demonstrate the author
 
 These are application-defined actions controlled entirely by FaceBridge. They are not native system prompts.
 
-## What FaceBridge Does NOT Do
+## What FaceBridge Does Not Do
 
 - Does not replace macOS login, FileVault, or screen unlock
 - Does not intercept App Store Touch ID prompts
@@ -122,7 +122,7 @@ FaceBridgeMacApp         macOS companion application
 FaceBridgeMacAgent       macOS background authorization agent
 ```
 
-Dependencies flow strictly downward: **Apps → UI/Transport → Protocol → Crypto → Core**.
+Dependencies flow strictly downward. **Crypto** and **Protocol** are siblings on top of **Core**. **Transport** and **SharedUI** sit on top of **Core + Protocol**. **Apps** depend on the layers below them.
 
 See [docs/architecture.md](docs/architecture.md) for module responsibilities, flow diagrams, and the complete authorization sequence.
 

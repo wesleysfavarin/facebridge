@@ -24,7 +24,7 @@ facebridge/
 
 ## Source Modules
 
-Dependencies flow strictly downward: **Apps → UI/Transport → Protocol → Crypto → Core**.
+Dependencies flow strictly downward. **Crypto** and **Protocol** are siblings on top of **Core**. **Transport** and **SharedUI** sit on **Core + Protocol**. Apps depend on the layers below them.
 
 ### FaceBridgeCore — `Sources/FaceBridgeCore/`
 
@@ -129,7 +129,7 @@ App/
 | Understand the Mac authorization flow | `Sources/FaceBridgeMacApp/MacCoordinator.swift`, `AuthorizationRequester.swift` |
 | Understand the iPhone authentication flow | `Sources/FaceBridgeiOSApp/iOSCoordinator.swift`, `AuthorizationResponder.swift` |
 | Understand the pairing ceremony | `Sources/FaceBridgeCore/PairingFlowController.swift` |
-| Run and test the project | [docs/real-device-testing.md](real-device-testing.md) |
+| Run and test the project | [real-device-testing.md](real-device-testing.md) |
 
 ## Documentation
 
