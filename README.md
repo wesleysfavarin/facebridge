@@ -39,13 +39,14 @@ FaceBridge explores whether biometric authorization can be securely delegated fr
 <img src="docs/images/ios/10-trusted-devices.png" width="180" alt="Trusted Devices"/>
 </p>
 
-### iOS App — Settings
+### iOS App — Settings & Demo
 
 <p>
 <img src="docs/images/ios/11-settings.png" width="180" alt="Settings — Connection status and developer mode"/>
+<video src="https://github.com/wesleysfavarin/facebridge/raw/main/docs/images/facebridge-demo.mp4" width="180" controls muted playsinline>
+  Your browser does not support the video tag.
+</video>
 </p>
-
-> **Demo video:** A full recording of the pairing and authorization flow on real hardware is available at [`docs/images/facebridge-demo.mp4`](docs/images/facebridge-demo.mp4).
 
 ## Who This May Interest
 
